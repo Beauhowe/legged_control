@@ -22,7 +22,13 @@
 
     <depend>angles</depend>
 
+    <exec_depend>rospy</exec_depend>
+    <exec_depend>sensor_msgs</exec_depend>
+    <exec_depend>ocs2_msgs</exec_depend>
+
     <exec_depend>controller_manager</exec_depend>
+    <exec_depend>joy</exec_depend>
+    <exec_depend>joy_teleop</exec_depend>
 
     <export>
         <controller_interface plugin="${prefix}/legged_controllers_plugins.xml"/>

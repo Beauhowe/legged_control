@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<launch>
+    <!-- 需已有 /gaitCommandFile（load_controller.launch 会设置） -->
+    <arg name="enable_joy_gait" default="false" doc="true：手柄组合切换步态（见 config/joy_gait_mappings.yaml）"/>
+    <arg name="joy_topic" default="/legged_robot/joystick" doc="与 joy_teleop.launch 中 joy_node 发布名一致"/>
+
+    <group if="$(arg enable_joy_gait)">
+        <node pkg="legged_controllers" type="joy_gait_publisher.py" name="joy_gait_publisher" output="screen">
+            <!-- 必须放在 node 内，保证 ~mappings 落在本节点私有空间 -->
+            <rosparam file="$(find legged_controllers)/config/joy_gait_mappings.yaml" command="load"/>
+            <param name="joy_topic" value="$(arg joy_topic)"/>
+        </node>
+    </group>
+</launch>

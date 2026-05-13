@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<!-- 与 joy_teleop.launch 相同，但默认启用手柄步态（仍须先 load_controller 再本 launch） -->
+<launch>
+    <arg name="joy_dev" default="/dev/input/js0"/>
+    <arg name="joy_topic" default="/legged_robot/joystick"/>
+    <arg name="teleop_config" default="$(find legged_controllers)/config/joy.yaml"/>
+
+    <include file="$(find legged_controllers)/launch/joy_teleop.launch">
+        <arg name="joy_dev" value="$(arg joy_dev)"/>
+        <arg name="joy_topic" value="$(arg joy_topic)"/>
+        <arg name="teleop_config" value="$(arg teleop_config)"/>
+        <arg name="enable_joy_gait" value="true"/>
+    </include>
+</launch>

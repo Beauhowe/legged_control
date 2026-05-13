@@ -1,16 +1,20 @@
+# joy_teleop config for legged_control -> /cmd_vel (see TargetTrajectoriesPublisher).
+# Hold deadman (button index in deadman_buttons) while moving sticks, or no cmd_vel is sent.
+# Button/axis indices vary by controller; use: jstest /dev/input/js0  (or rostopic echo /legged_robot/joystick)
+# Launch: roslaunch legged_controllers joy_teleop.launch  [joy_topic:=/legged_robot/joystick] [joy_dev:=/dev/input/js1]
 teleop:
   walk:
     type: topic
     message_type: geometry_msgs/Twist
-    topic_name: cmd_vel
+    topic_name: /cmd_vel
     deadman_buttons: [ 4 ]
     axis_mappings:
       - axis: 0
         target: angular.z
         scale: 3.1415
-      - axis: 1
+      - axis: 4
         target: linear.x
         scale: 1.0
-      - axis: 2
+      - axis: 3
         target: linear.y
         scale: 0.8

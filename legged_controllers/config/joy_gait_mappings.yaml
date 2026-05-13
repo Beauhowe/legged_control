@@ -1,0 +1,26 @@
+# 手柄组合 -> 步态（与终端输入同名，小写）
+# 条件：所列 buttons 全部「按下」；且在「从非全按下 -> 全按下」的上升沿发一次（带 cooldown）
+# 按键编号：rostopic echo /legged_robot/joystick 看 buttons[] 下标，或 jstest /dev/input/js0
+#
+# 启动：roslaunch legged_controllers joy_teleop.launch enable_joy_gait:=true
+#
+# 顺序（重要）：
+#   1) roslaunch load_controller.launch  （提供 /gaitCommandFile）
+#   2) rosservice / rqt 启动 controllers/legged_controller  （否则 /legged_robot_mpc_mode_schedule 订阅者=0，步态进不了 MPC）
+#   3) roslaunch joy_teleop.launch enable_joy_gait:=true
+#   若 2 晚于 3：先按一次手柄步态，等控制器起来后节点会自动「补发」上次步态。
+#
+# 若出现 Unable to register with master / gaitCommandFile not set：先开 roscore，且必须先 load_controller 再 joy_teleop。
+#
+# 调参（可选，写在 node 里 <param>）：
+#   ~button_threshold  默认 0.5（适配浮点 buttons）
+#   ~cooldown_sec      默认 0.25
+#   ~publish_repeats   默认连发 3 次防丢
+#   ~debug             true 时 throttle 打 buttons
+
+mappings:
+  # 示例：请按你的手柄改 button 编号
+  - gait: trot
+    buttons: [5, 2]
+  - gait: stance
+    buttons: [5, 3]
