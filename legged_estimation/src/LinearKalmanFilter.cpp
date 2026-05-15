@@ -12,14 +12,15 @@
 
 namespace legged {
 
-KalmanFilterEstimate::KalmanFilterEstimate(PinocchioInterface pinocchioInterface, CentroidalModelInfo info,
+KalmanFilterEstimate::KalmanFilterEstimate(rclcpp::Node::SharedPtr node, PinocchioInterface pinocchioInterface, CentroidalModelInfo info,
                                            const PinocchioEndEffectorKinematics& eeKinematics)
-    : StateEstimateBase(std::move(pinocchioInterface), std::move(info), eeKinematics),
+    : StateEstimateBase(node, std::move(pinocchioInterface), std::move(info), eeKinematics),
       numContacts_(info_.numThreeDofContacts + info_.numSixDofContacts),
       dimContacts_(3 * numContacts_),
       numState_(6 + dimContacts_),
       numObserve_(2 * dimContacts_ + numContacts_),
-      tfListener_(tfBuffer_),
+      tfBuffer_(node->get_clock()),
+      tfListener_(tfBuffer_, node, false),
       topicUpdated_(false) {
   xHat_.setZero(numState_);
   ps_.setZero(dimContacts_);
@@ -45,11 +46,12 @@ KalmanFilterEstimate::KalmanFilterEstimate(PinocchioInterface pinocchioInterface
   eeKinematics_->setPinocchioInterface(pinocchioInterface_);
 
   world2odom_.setRotation(tf2::Quaternion::getIdentity());
-  sub_ = ros::NodeHandle().subscribe<nav_msgs::Odometry>("/tracking_camera/odom/sample", 10, &KalmanFilterEstimate::callback, this);
+  sub_ = node_->create_subscription<nav_msgs::msg::Odometry>("/tracking_camera/odom/sample", 10,
+                                                             std::bind(&KalmanFilterEstimate::callback, this, std::placeholders::_1));
 }
 
-vector_t KalmanFilterEstimate::update(const ros::Time& time, const ros::Duration& period) {
-  scalar_t dt = period.toSec();
+vector_t KalmanFilterEstimate::update(const rclcpp::Time& time, const rclcpp::Duration& period) {
+  scalar_t dt = period.seconds();
   a_.block(0, 3, 3, 3) = dt * matrix3_t::Identity();
   b_.block(0, 0, 3, 3) = 0.5 * dt * dt * matrix3_t::Identity();
   b_.block(3, 0, 3, 3) = dt * matrix3_t::Identity();
@@ -167,20 +169,22 @@ void KalmanFilterEstimate::updateFromTopic() {
   {
     tf2::Transform odom2sensor;
     try {
-      geometry_msgs::TransformStamped tf_msg = tfBuffer_.lookupTransform("odom", msg->child_frame_id, msg->header.stamp);
+      geometry_msgs::msg::TransformStamped tf_msg =
+          tfBuffer_.lookupTransform("odom", msg->child_frame_id, rclcpp::Time(msg->header.stamp, node_->get_clock()->get_clock_type()));
       tf2::fromMsg(tf_msg.transform, odom2sensor);
     } catch (tf2::TransformException& ex) {
-      ROS_WARN("%s", ex.what());
+      RCLCPP_WARN(node_->get_logger(), "%s", ex.what());
       return;
     }
     world2odom_ = world2sensor * odom2sensor.inverse();
   }
   tf2::Transform base2sensor;
   try {
-    geometry_msgs::TransformStamped tf_msg = tfBuffer_.lookupTransform("base", msg->child_frame_id, msg->header.stamp);
+    geometry_msgs::msg::TransformStamped tf_msg =
+        tfBuffer_.lookupTransform("base", msg->child_frame_id, rclcpp::Time(msg->header.stamp, node_->get_clock()->get_clock_type()));
     tf2::fromMsg(tf_msg.transform, base2sensor);
   } catch (tf2::TransformException& ex) {
-    ROS_WARN("%s", ex.what());
+    RCLCPP_WARN(node_->get_logger(), "%s", ex.what());
     return;
   }
   tf2::Transform odom2base = world2odom_.inverse() * world2sensor * base2sensor.inverse();
@@ -211,13 +215,13 @@ void KalmanFilterEstimate::updateFromTopic() {
   publishMsgs(odom);
 }
 
-void KalmanFilterEstimate::callback(const nav_msgs::Odometry::ConstPtr& msg) {
+void KalmanFilterEstimate::callback(const nav_msgs::msg::Odometry::ConstSharedPtr msg) {
   buffer_.writeFromNonRT(*msg);
   topicUpdated_ = true;
 }
 
-nav_msgs::Odometry KalmanFilterEstimate::getOdomMsg() {
-  nav_msgs::Odometry odom;
+nav_msgs::msg::Odometry KalmanFilterEstimate::getOdomMsg() {
+  nav_msgs::msg::Odometry odom;
   odom.pose.pose.position.x = xHat_.segment<3>(0)(0);
   odom.pose.pose.position.y = xHat_.segment<3>(0)(1);
   odom.pose.pose.position.z = xHat_.segment<3>(0)(2);

@@ -11,16 +11,16 @@
 namespace legged {
 using namespace legged_robot;
 
-StateEstimateBase::StateEstimateBase(PinocchioInterface pinocchioInterface, CentroidalModelInfo info,
+StateEstimateBase::StateEstimateBase(rclcpp::Node::SharedPtr node, PinocchioInterface pinocchioInterface, CentroidalModelInfo info,
                                      const PinocchioEndEffectorKinematics& eeKinematics)
-    : pinocchioInterface_(std::move(pinocchioInterface)),
+    : node_(std::move(node)),
+      pinocchioInterface_(std::move(pinocchioInterface)),
       info_(std::move(info)),
       eeKinematics_(eeKinematics.clone()),
-      rbdState_(vector_t ::Zero(2 * info_.generalizedCoordinatesNum)) {
-  ros::NodeHandle nh;
-  odomPub_.reset(new realtime_tools::RealtimePublisher<nav_msgs::Odometry>(nh, "odom", 10));
-
-  posePub_.reset(new realtime_tools::RealtimePublisher<geometry_msgs::PoseWithCovarianceStamped>(nh, "pose", 10));
+      rbdState_(vector_t ::Zero(2 * info_.generalizedCoordinatesNum)),
+      lastPub_(0, 0, node_->get_clock()->get_clock_type()) {
+  odomPub_ = node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+  posePub_ = node_->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("pose", 10);
 }
 
 void StateEstimateBase::updateJointStates(const vector_t& jointPos, const vector_t& jointVel) {
@@ -54,20 +54,17 @@ void StateEstimateBase::updateLinear(const vector_t& pos, const vector_t& linear
   rbdState_.segment<3>(info_.generalizedCoordinatesNum + 3) = linearVel;
 }
 
-void StateEstimateBase::publishMsgs(const nav_msgs::Odometry& odom) {
-  ros::Time time = odom.header.stamp;
+void StateEstimateBase::publishMsgs(const nav_msgs::msg::Odometry& odom) {
+  rclcpp::Time time(odom.header.stamp, node_->get_clock()->get_clock_type());
   scalar_t publishRate = 200;
-  if (lastPub_ + ros::Duration(1. / publishRate) < time) {
+  if ((time - lastPub_).seconds() > 1. / publishRate) {
     lastPub_ = time;
-    if (odomPub_->trylock()) {
-      odomPub_->msg_ = odom;
-      odomPub_->unlockAndPublish();
-    }
-    if (posePub_->trylock()) {
-      posePub_->msg_.header = odom.header;
-      posePub_->msg_.pose = odom.pose;
-      posePub_->unlockAndPublish();
-    }
+    odomPub_->publish(odom);
+
+    geometry_msgs::msg::PoseWithCovarianceStamped pose;
+    pose.header = odom.header;
+    pose.pose = odom.pose;
+    posePub_->publish(pose);
   }
 }
 

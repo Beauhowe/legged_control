@@ -1,8 +1,20 @@
-controllers:
-  joint_state_controller:
-    type: joint_state_controller/JointStateController
-    publish_rate: 100
-  legged_controller:
-    type: legged/LeggedController
-  legged_cheater_controller:
-    type: legged/LeggedCheaterController
+controller_manager:
+  ros__parameters:
+    update_rate: 1000
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    legged_controller:
+      type: legged/LeggedController
+
+    legged_cheater_controller:
+      type: legged/LeggedCheaterController
+
+legged_controller:
+  ros__parameters:
+    imuName: base_imu
+
+legged_cheater_controller:
+  ros__parameters:
+    imuName: base_imu

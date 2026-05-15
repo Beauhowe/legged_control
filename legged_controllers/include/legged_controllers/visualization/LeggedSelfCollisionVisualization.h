@@ -3,8 +3,6 @@
 //
 
 #pragma once
-#include <ros/ros.h>
-
 #include <ocs2_self_collision_visualization/GeometryInterfaceVisualization.h>
 
 #include <utility>
@@ -16,9 +14,9 @@ using namespace ocs2;
 class LeggedSelfCollisionVisualization : public GeometryInterfaceVisualization {
  public:
   LeggedSelfCollisionVisualization(PinocchioInterface pinocchioInterface, PinocchioGeometryInterface geometryInterface,
-                                   const CentroidalModelPinocchioMapping& mapping, ros::NodeHandle& nh, scalar_t maxUpdateFrequency = 50.0)
+                                   const CentroidalModelPinocchioMapping& mapping, scalar_t maxUpdateFrequency = 50.0)
       : mappingPtr_(mapping.clone()),
-        GeometryInterfaceVisualization(std::move(pinocchioInterface), std::move(geometryInterface), nh, "odom"),
+        GeometryInterfaceVisualization(std::move(pinocchioInterface), std::move(geometryInterface), "odom"),
         lastTime_(std::numeric_limits<scalar_t>::lowest()),
         minPublishTimeDifference_(1.0 / maxUpdateFrequency) {}
   void update(const SystemObservation& observation) {

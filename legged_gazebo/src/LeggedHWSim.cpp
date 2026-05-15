@@ -36,202 +36,265 @@
 //
 
 #include "legged_gazebo/LeggedHWSim.h"
-#include <gazebo_ros_control/gazebo_ros_control_plugin.h>
+
+#include <algorithm>
+
+#include <angles/angles.h>
+#include <gazebo/common/Time.hh>
+#include <gazebo/physics/Contact.hh>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <pluginlib/class_list_macros.hpp>
 
 namespace legged {
-bool LeggedHWSim::initSim(const std::string& robot_namespace, ros::NodeHandle model_nh, gazebo::physics::ModelPtr parent_model,
-                          const urdf::Model* urdf_model, std::vector<transmission_interface::TransmissionInfo> transmissions) {
-  bool ret = DefaultRobotHWSim::initSim(robot_namespace, model_nh, parent_model, urdf_model, transmissions);
-  // Joint interface
-  registerInterface(&hybridJointInterface_);
-  std::vector<std::string> names = ej_interface_.getNames();
-  for (const auto& name : names) {
-    hybridJointDatas_.push_back(HybridJointData{.joint_ = ej_interface_.getHandle(name)});
-    HybridJointData& back = hybridJointDatas_.back();
-    hybridJointInterface_.registerHandle(HybridJointHandle(back.joint_, &back.posDes_, &back.velDes_, &back.kp_, &back.kd_, &back.ff_));
-    cmdBuffer_.insert(std::make_pair(name.c_str(), std::deque<HybridJointCommand>()));
-  }
-  // IMU interface
-  registerInterface(&imuSensorInterface_);
-  XmlRpc::XmlRpcValue xmlRpcValue;
-  if (!model_nh.getParam("gazebo/imus", xmlRpcValue)) {
-    ROS_WARN("No imu specified");
-  } else {
-    parseImu(xmlRpcValue, parent_model);
-  }
-  if (!model_nh.getParam("gazebo/delay", delay_)) {
-    delay_ = 0.;
-  }
-  if (!model_nh.getParam("gazebo/contacts", xmlRpcValue)) {
-    ROS_WARN("No contacts specified");
-  } else {
-    parseContacts(xmlRpcValue);
-  }
-
-  contactManager_ = parent_model->GetWorld()->Physics()->GetContactManager();
-  contactManager_->SetNeverDropContacts(true);  // NOTE: If false, we need to select view->contacts in gazebo GUI to
-                                                // avoid returning nothing when calling ContactManager::GetContacts()
-  return ret;
+namespace {
+double getHardwareParameter(const hardware_interface::HardwareInfo& hardwareInfo, const std::string& name, double defaultValue) {
+  const auto it = hardwareInfo.hardware_parameters.find(name);
+  return it == hardwareInfo.hardware_parameters.end() ? defaultValue : std::stod(it->second);
 }
 
-void LeggedHWSim::readSim(ros::Time time, ros::Duration period) {
-  //  gazebo_ros_control::DefaultRobotHWSim::readSim(time, period); The DefaultRobotHWSim Provide a bias joint velocity
-  for (unsigned int j = 0; j < n_dof_; j++) {
-    double position = sim_joints_[j]->Position(0);
+bool hasStateInterface(const hardware_interface::ComponentInfo& component, const std::string& interfaceName) {
+  return std::any_of(component.state_interfaces.begin(), component.state_interfaces.end(),
+                     [&](const auto& stateInterface) { return stateInterface.name == interfaceName; });
+}
+}  // namespace
 
-    joint_velocity_[j] = (position - joint_position_[j]) / period.toSec();
-    if (time == ros::Time(period.toSec())) {
-      joint_velocity_[j] = 0;
-    }
-    if (joint_types_[j] == urdf::Joint::PRISMATIC) {
-      joint_position_[j] = position;
-    } else {
-      joint_position_[j] += angles::shortest_angular_distance(joint_position_[j], position);
-    }
-    joint_effort_[j] = sim_joints_[j]->GetForce((unsigned int)(0));
+hardware_interface::CallbackReturn LeggedHWSim::on_init(const hardware_interface::HardwareInfo& hardwareInfo) {
+  if (hardware_interface::SystemInterface::on_init(hardwareInfo) != hardware_interface::CallbackReturn::SUCCESS) {
+    return hardware_interface::CallbackReturn::ERROR;
   }
 
-  // Imu Sensor
-  for (auto& imu : imuDatas_) {
-    // TODO(qiayuan) Add noise
-    ignition::math::Pose3d pose = imu.linkPtr_->WorldPose();
+  delay_ = getHardwareParameter(hardwareInfo, "delay", 0.009);
+  return hardware_interface::CallbackReturn::SUCCESS;
+}
+
+bool LeggedHWSim::initSim(rclcpp::Node::SharedPtr& model_nh, gazebo::physics::ModelPtr parent_model,
+                          const hardware_interface::HardwareInfo& hardware_info, sdf::ElementPtr /*sdf*/) {
+  nh_ = model_nh;
+  parentModel_ = std::move(parent_model);
+  contactManager_ = parentModel_->GetWorld()->Physics()->GetContactManager();
+  contactManager_->SetNeverDropContacts(true);
+  baseLink_ = parentModel_->GetLink("base");
+  groundTruthPublisher_ = nh_->create_publisher<nav_msgs::msg::Odometry>("/ground_truth/state", 10);
+
+  return setupJoints(hardware_info) && setupImu(hardware_info) && setupContacts(hardware_info);
+}
+
+std::vector<hardware_interface::StateInterface> LeggedHWSim::export_state_interfaces() {
+  std::vector<hardware_interface::StateInterface> stateInterfaces;
+  stateInterfaces.reserve(jointData_.size() * HYBRID_JOINT_STATE_INTERFACES.size() + contactStates_.size() + imuData_.size() * 10);
+
+  for (auto& joint : jointData_) {
+    stateInterfaces.emplace_back(joint.name_, hardware_interface::HW_IF_POSITION, &joint.state_.position);
+    stateInterfaces.emplace_back(joint.name_, hardware_interface::HW_IF_VELOCITY, &joint.state_.velocity);
+    stateInterfaces.emplace_back(joint.name_, hardware_interface::HW_IF_EFFORT, &joint.state_.effort);
+  }
+
+  for (size_t i = 0; i < contactNames_.size(); ++i) {
+    stateInterfaces.emplace_back(contactNames_[i], HW_IF_CONTACT, &contactStates_[i]);
+  }
+
+  for (auto& imu : imuData_) {
+    stateInterfaces.emplace_back(imu.name_, "orientation.x", &imu.ori_[0]);
+    stateInterfaces.emplace_back(imu.name_, "orientation.y", &imu.ori_[1]);
+    stateInterfaces.emplace_back(imu.name_, "orientation.z", &imu.ori_[2]);
+    stateInterfaces.emplace_back(imu.name_, "orientation.w", &imu.ori_[3]);
+    stateInterfaces.emplace_back(imu.name_, "angular_velocity.x", &imu.angularVel_[0]);
+    stateInterfaces.emplace_back(imu.name_, "angular_velocity.y", &imu.angularVel_[1]);
+    stateInterfaces.emplace_back(imu.name_, "angular_velocity.z", &imu.angularVel_[2]);
+    stateInterfaces.emplace_back(imu.name_, "linear_acceleration.x", &imu.linearAcc_[0]);
+    stateInterfaces.emplace_back(imu.name_, "linear_acceleration.y", &imu.linearAcc_[1]);
+    stateInterfaces.emplace_back(imu.name_, "linear_acceleration.z", &imu.linearAcc_[2]);
+  }
+
+  return stateInterfaces;
+}
+
+std::vector<hardware_interface::CommandInterface> LeggedHWSim::export_command_interfaces() {
+  std::vector<hardware_interface::CommandInterface> commandInterfaces;
+  commandInterfaces.reserve(jointData_.size() * HYBRID_JOINT_COMMAND_INTERFACES.size());
+
+  for (auto& joint : jointData_) {
+    commandInterfaces.emplace_back(joint.name_, HW_IF_POSITION_DESIRED, &joint.command_.position_desired);
+    commandInterfaces.emplace_back(joint.name_, HW_IF_VELOCITY_DESIRED, &joint.command_.velocity_desired);
+    commandInterfaces.emplace_back(joint.name_, HW_IF_KP, &joint.command_.kp);
+    commandInterfaces.emplace_back(joint.name_, HW_IF_KD, &joint.command_.kd);
+    commandInterfaces.emplace_back(joint.name_, HW_IF_FEEDFORWARD, &joint.command_.feedforward);
+  }
+
+  return commandInterfaces;
+}
+
+hardware_interface::return_type LeggedHWSim::read(const rclcpp::Time& time, const rclcpp::Duration& period) {
+  const double dt = period.seconds();
+  for (auto& joint : jointData_) {
+    const double position = joint.joint_->Position(0);
+    joint.state_.velocity = dt > 0.0 ? (position - joint.state_.position) / dt : 0.0;
+    if (time.nanoseconds() == period.nanoseconds()) {
+      joint.state_.velocity = 0.0;
+    }
+    joint.state_.position += angles::shortest_angular_distance(joint.state_.position, position);
+    joint.state_.effort = joint.joint_->GetForce(0);
+  }
+
+  for (auto& imu : imuData_) {
+    const auto pose = imu.linkPtr_->WorldPose();
     imu.ori_[0] = pose.Rot().X();
     imu.ori_[1] = pose.Rot().Y();
     imu.ori_[2] = pose.Rot().Z();
     imu.ori_[3] = pose.Rot().W();
-    ignition::math::Vector3d rate = imu.linkPtr_->RelativeAngularVel();
-    imu.angularVel_[0] = rate.X();
-    imu.angularVel_[1] = rate.Y();
-    imu.angularVel_[2] = rate.Z();
 
-    ignition::math::Vector3d gravity = {0., 0., -9.81};
-    ignition::math::Vector3d accel = imu.linkPtr_->RelativeLinearAccel() - pose.Rot().RotateVectorReverse(gravity);
-    imu.linearAcc_[0] = accel.X();
-    imu.linearAcc_[1] = accel.Y();
-    imu.linearAcc_[2] = accel.Z();
+    const auto angularVelocity = imu.linkPtr_->RelativeAngularVel();
+    imu.angularVel_[0] = angularVelocity.X();
+    imu.angularVel_[1] = angularVelocity.Y();
+    imu.angularVel_[2] = angularVelocity.Z();
+
+    const ignition::math::Vector3d gravity{0.0, 0.0, -9.81};
+    const auto linearAcceleration = imu.linkPtr_->RelativeLinearAccel() - pose.Rot().RotateVectorReverse(gravity);
+    imu.linearAcc_[0] = linearAcceleration.X();
+    imu.linearAcc_[1] = linearAcceleration.Y();
+    imu.linearAcc_[2] = linearAcceleration.Z();
   }
 
-  // Contact Sensor
-  for (auto& state : name2contact_) {
-    state.second = false;
-  }
+  std::fill(contactStates_.begin(), contactStates_.end(), 0.0);
+  const auto previousUpdateTime = time - period;
   for (const auto& contact : contactManager_->GetContacts()) {
-    if (static_cast<uint32_t>(contact->time.sec) != (time - period).sec ||
-        static_cast<uint32_t>(contact->time.nsec) != (time - period).nsec) {
+    const int64_t contactTimeNs = static_cast<int64_t>(contact->time.sec) * 1000000000LL + contact->time.nsec;
+    if (contactTimeNs != previousUpdateTime.nanoseconds()) {
       continue;
     }
-    std::string linkName = contact->collision1->GetLink()->GetName();
-    if (name2contact_.find(linkName) != name2contact_.end()) {
-      name2contact_[linkName] = true;
-    }
-    linkName = contact->collision2->GetLink()->GetName();
-    if (name2contact_.find(linkName) != name2contact_.end()) {
-      name2contact_[linkName] = true;
+
+    const std::string link1 = contact->collision1->GetLink()->GetName();
+    const std::string link2 = contact->collision2->GetLink()->GetName();
+    for (size_t i = 0; i < contactLinkNames_.size(); ++i) {
+      if (link1 == contactLinkNames_[i] || link2 == contactLinkNames_[i]) {
+        contactStates_[i] = 1.0;
+      }
     }
   }
 
-  // Set cmd to zero to avoid crazy soft limit oscillation when not controller loaded
-  for (auto& cmd : joint_effort_command_) {
-    cmd = 0;
+  for (auto& joint : jointData_) {
+    joint.command_.position_desired = joint.state_.position;
+    joint.command_.velocity_desired = 0.0;
+    joint.command_.kp = 0.0;
+    joint.command_.kd = 0.0;
+    joint.command_.feedforward = 0.0;
   }
-  for (auto& cmd : joint_velocity_command_) {
-    cmd = 0;
-  }
-  for (auto& joint : hybridJointDatas_) {
-    joint.posDes_ = joint.joint_.getPosition();
-    joint.velDes_ = joint.joint_.getVelocity();
-    joint.kp_ = 0.;
-    joint.kd_ = 0.;
-    joint.ff_ = 0.;
-  }
+
+  updateGroundTruth(time);
+  return hardware_interface::return_type::OK;
 }
 
-void LeggedHWSim::writeSim(ros::Time time, ros::Duration period) {
-  for (auto joint : hybridJointDatas_) {
-    auto& buffer = cmdBuffer_.find(joint.joint_.getName())->second;
-    if (time == ros::Time(period.toSec())) {  // Simulation reset
+hardware_interface::return_type LeggedHWSim::write(const rclcpp::Time& time, const rclcpp::Duration& period) {
+  for (size_t i = 0; i < jointData_.size(); ++i) {
+    auto& joint = jointData_[i];
+    auto& buffer = cmdBuffer_[i];
+    if (time.nanoseconds() == period.nanoseconds()) {
       buffer.clear();
     }
 
-    while (!buffer.empty() && buffer.back().stamp_ + ros::Duration(delay_) < time) {
+    while (!buffer.empty() && (time - buffer.back().stamp_).seconds() > delay_) {
       buffer.pop_back();
     }
-    buffer.push_front(HybridJointCommand{
-        .stamp_ = time, .posDes_ = joint.posDes_, .velDes_ = joint.velDes_, .kp_ = joint.kp_, .kd_ = joint.kd_, .ff_ = joint.ff_});
+    buffer.push_front(DelayedHybridJointCommand{time, joint.command_});
 
-    const auto& cmd = buffer.back();
-    joint.joint_.setCommand(cmd.kp_ * (cmd.posDes_ - joint.joint_.getPosition()) + cmd.kd_ * (cmd.velDes_ - joint.joint_.getVelocity()) +
-                            cmd.ff_);
+    const auto& command = buffer.back().command_;
+    const double effort = command.kp * (command.position_desired - joint.state_.position) +
+                          command.kd * (command.velocity_desired - joint.state_.velocity) + command.feedforward;
+    joint.joint_->SetForce(0, effort);
   }
-  DefaultRobotHWSim::writeSim(time, period);
+
+  return hardware_interface::return_type::OK;
 }
 
-void LeggedHWSim::parseImu(XmlRpc::XmlRpcValue& imuDatas, const gazebo::physics::ModelPtr& parentModel) {
-  ROS_ASSERT(imuDatas.getType() == XmlRpc::XmlRpcValue::TypeStruct);
-  for (auto it = imuDatas.begin(); it != imuDatas.end(); ++it) {
-    if (!it->second.hasMember("frame_id")) {
-      ROS_ERROR_STREAM("Imu " << it->first << " has no associated frame id.");
-      continue;
-    } else if (!it->second.hasMember("orientation_covariance_diagonal")) {
-      ROS_ERROR_STREAM("Imu " << it->first << " has no associated orientation covariance diagonal.");
-      continue;
-    } else if (!it->second.hasMember("angular_velocity_covariance")) {
-      ROS_ERROR_STREAM("Imu " << it->first << " has no associated angular velocity covariance.");
-      continue;
-    } else if (!it->second.hasMember("linear_acceleration_covariance")) {
-      ROS_ERROR_STREAM("Imu " << it->first << " has no associated linear acceleration covariance.");
-      continue;
-    }
-    XmlRpc::XmlRpcValue oriCov = imuDatas[it->first]["orientation_covariance_diagonal"];
-    ROS_ASSERT(oriCov.getType() == XmlRpc::XmlRpcValue::TypeArray);
-    ROS_ASSERT(oriCov.size() == 3);
-    for (int i = 0; i < oriCov.size(); ++i) {
-      ROS_ASSERT(oriCov[i].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-    }
-    XmlRpc::XmlRpcValue angularCov = imuDatas[it->first]["angular_velocity_covariance"];
-    ROS_ASSERT(angularCov.getType() == XmlRpc::XmlRpcValue::TypeArray);
-    ROS_ASSERT(angularCov.size() == 3);
-    for (int i = 0; i < angularCov.size(); ++i) {
-      ROS_ASSERT(angularCov[i].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-    }
-    XmlRpc::XmlRpcValue linearCov = imuDatas[it->first]["linear_acceleration_covariance"];
-    ROS_ASSERT(linearCov.getType() == XmlRpc::XmlRpcValue::TypeArray);
-    ROS_ASSERT(linearCov.size() == 3);
-    for (int i = 0; i < linearCov.size(); ++i) {
-      ROS_ASSERT(linearCov[i].getType() == XmlRpc::XmlRpcValue::TypeDouble);
-    }
+bool LeggedHWSim::setupJoints(const hardware_interface::HardwareInfo& hardwareInfo) {
+  jointData_.clear();
+  jointData_.reserve(hardwareInfo.joints.size());
+  cmdBuffer_.clear();
+  cmdBuffer_.resize(hardwareInfo.joints.size());
 
-    std::string frameId = imuDatas[it->first]["frame_id"];
-    gazebo::physics::LinkPtr linkPtr = parentModel->GetLink(frameId);
-    ROS_ASSERT(linkPtr != nullptr);
-    imuDatas_.push_back((ImuData{
-        .linkPtr_ = linkPtr,
-        .ori_ = {0., 0., 0., 0.},
-        .oriCov_ = {static_cast<double>(oriCov[0]), 0., 0., 0., static_cast<double>(oriCov[1]), 0., 0., 0., static_cast<double>(oriCov[2])},
-        .angularVel_ = {0., 0., 0.},
-        .angularVelCov_ = {static_cast<double>(angularCov[0]), 0., 0., 0., static_cast<double>(angularCov[1]), 0., 0., 0.,
-                           static_cast<double>(angularCov[2])},
-        .linearAcc_ = {0., 0., 0.},
-        .linearAccCov_ = {static_cast<double>(linearCov[0]), 0., 0., 0., static_cast<double>(linearCov[1]), 0., 0., 0.,
-                          static_cast<double>(linearCov[2])}}));
-    ImuData& imuData = imuDatas_.back();
-    imuSensorInterface_.registerHandle(hardware_interface::ImuSensorHandle(it->first, frameId, imuData.ori_, imuData.oriCov_,
-                                                                           imuData.angularVel_, imuData.angularVelCov_, imuData.linearAcc_,
-                                                                           imuData.linearAccCov_));
+  for (const auto& jointInfo : hardwareInfo.joints) {
+    auto joint = parentModel_->GetJoint(jointInfo.name);
+    if (!joint) {
+      RCLCPP_ERROR(logger_, "Gazebo joint '%s' not found.", jointInfo.name.c_str());
+      return false;
+    }
+    jointData_.push_back(SimHybridJointData{jointInfo.name, joint, {}, {}});
   }
+  return true;
 }
 
-void LeggedHWSim::parseContacts(XmlRpc::XmlRpcValue& contactNames) {
-  ROS_ASSERT(contactNames.getType() == XmlRpc::XmlRpcValue::TypeArray);
-  for (int i = 0; i < contactNames.size(); ++i) {  // NOLINT(modernize-loop-convert)
-    std::string name = contactNames[i];
-    name2contact_.insert(std::make_pair(name, false));
-    contactSensorInterface_.registerHandle(ContactSensorHandle(name, &name2contact_[name]));
+bool LeggedHWSim::setupImu(const hardware_interface::HardwareInfo& hardwareInfo) {
+  imuData_.clear();
+  for (const auto& sensorInfo : hardwareInfo.sensors) {
+    if (!hasStateInterface(sensorInfo, "orientation.x")) {
+      continue;
+    }
+    auto link = parentModel_->GetLink(sensorInfo.name);
+    if (!link) {
+      RCLCPP_ERROR(logger_, "Gazebo IMU link '%s' not found.", sensorInfo.name.c_str());
+      return false;
+    }
+
+    ImuData imu{};
+    imu.name_ = sensorInfo.name;
+    imu.linkPtr_ = link;
+    imu.oriCov_[0] = 0.0012;
+    imu.oriCov_[4] = 0.0012;
+    imu.oriCov_[8] = 0.0012;
+    imu.angularVelCov_[0] = 0.0004;
+    imu.angularVelCov_[4] = 0.0004;
+    imu.angularVelCov_[8] = 0.0004;
+    imu.linearAccCov_[0] = 0.01;
+    imu.linearAccCov_[4] = 0.01;
+    imu.linearAccCov_[8] = 0.01;
+    imuData_.push_back(imu);
   }
-  registerInterface(&contactSensorInterface_);
+  return true;
+}
+
+bool LeggedHWSim::setupContacts(const hardware_interface::HardwareInfo& hardwareInfo) {
+  contactNames_.clear();
+  contactLinkNames_.clear();
+  for (const auto& sensorInfo : hardwareInfo.sensors) {
+    if (!hasStateInterface(sensorInfo, HW_IF_CONTACT)) {
+      continue;
+    }
+    contactNames_.push_back(sensorInfo.name);
+    contactLinkNames_.push_back(sensorInfo.name);
+  }
+  contactStates_.assign(contactNames_.size(), 0.0);
+  return true;
+}
+
+void LeggedHWSim::updateGroundTruth(const rclcpp::Time& time) {
+  if (!baseLink_ || !groundTruthPublisher_) {
+    return;
+  }
+
+  const auto pose = baseLink_->WorldPose();
+  const auto linearVelocity = baseLink_->WorldLinearVel();
+  const auto angularVelocity = baseLink_->WorldAngularVel();
+
+  nav_msgs::msg::Odometry odom;
+  odom.header.stamp = time;
+  odom.header.frame_id = "world";
+  odom.child_frame_id = "base";
+  odom.pose.pose.position.x = pose.Pos().X();
+  odom.pose.pose.position.y = pose.Pos().Y();
+  odom.pose.pose.position.z = pose.Pos().Z();
+  odom.pose.pose.orientation.x = pose.Rot().X();
+  odom.pose.pose.orientation.y = pose.Rot().Y();
+  odom.pose.pose.orientation.z = pose.Rot().Z();
+  odom.pose.pose.orientation.w = pose.Rot().W();
+  odom.twist.twist.linear.x = linearVelocity.X();
+  odom.twist.twist.linear.y = linearVelocity.Y();
+  odom.twist.twist.linear.z = linearVelocity.Z();
+  odom.twist.twist.angular.x = angularVelocity.X();
+  odom.twist.twist.angular.y = angularVelocity.Y();
+  odom.twist.twist.angular.z = angularVelocity.Z();
+  groundTruthPublisher_->publish(odom);
 }
 
 }  // namespace legged
 
-PLUGINLIB_EXPORT_CLASS(legged::LeggedHWSim, gazebo_ros_control::RobotHWSim)
-GZ_REGISTER_MODEL_PLUGIN(gazebo_ros_control::GazeboRosControlPlugin)  // Default plugin
+PLUGINLIB_EXPORT_CLASS(legged::LeggedHWSim, gazebo_ros2_control::GazeboSystemInterface)

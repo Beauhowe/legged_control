@@ -1,0 +1,11 @@
+# 手柄组合 -> 步态（与终端 / gait.info 中名称一致，小写）
+# 条件：所列 buttons 全部按下；从「非全按下」到「全按下」的上升沿触发一次（带 cooldown）
+# 按键编号：ros2 topic echo /joy 查看 buttons[]，或 jstest /dev/input/js0
+#
+# 默认（常见 Sony 布局）：R1=5, B=2 -> trot；R1=5, Y=3 -> stance
+
+mappings:
+  - gait: trot
+    buttons: [5, 2]
+  - gait: stance
+    buttons: [5, 3]

@@ -3,65 +3,60 @@ project(legged_controllers)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-## Find catkin macros and libraries
-find_package(catkin REQUIRED
-        COMPONENTS
-        roscpp
-        legged_common
-        legged_interface
-        legged_wbc
-        legged_estimation
-        controller_interface
-        ocs2_legged_robot_ros
-        ocs2_self_collision_visualization
-        angles
-        )
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+find_package(controller_interface REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(angles REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(ocs2_msgs REQUIRED)
+find_package(ocs2_ros_interfaces REQUIRED)
+find_package(ocs2_legged_robot_ros REQUIRED)
+find_package(ocs2_self_collision_visualization REQUIRED)
+find_package(ocs2_sqp REQUIRED)
+find_package(legged_common REQUIRED)
+find_package(legged_interface REQUIRED)
+find_package(legged_wbc REQUIRED)
+find_package(legged_estimation REQUIRED)
+find_package(pinocchio REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem system log log_setup)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(pinocchio REQUIRED pinocchio)
-
-catkin_package(
-        INCLUDE_DIRS
-        include
-        LIBRARIES
-        ${PROJECT_NAME}
-        CATKIN_DEPENDS
-        roscpp
-        legged_common
-        legged_interface
-        legged_wbc
-        legged_estimation
-        controller_interface
-        ocs2_legged_robot_ros
-        ocs2_self_collision_visualization
-        angles
-)
-
-###########
-## Build ##
-###########
-
-include_directories(
-        include
-        ${catkin_INCLUDE_DIRS}
-        ${pinocchio_INCLUDE_DIRS}
-)
-
-link_directories(
-        ${pinocchio_LIBRARY_DIRS}
-)
-
-## Declare a cpp library
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} SHARED
         src/LeggedController.cpp
         )
 
-target_link_libraries(${PROJECT_NAME}
-        ${catkin_LIBRARIES}
-        ${pinocchio_LIBRARIES}
+target_include_directories(${PROJECT_NAME}
+        PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        )
+
+ament_target_dependencies(${PROJECT_NAME}
+        rclcpp
+        rclcpp_lifecycle
+        controller_interface
+        hardware_interface
+        pluginlib
+        angles
+        ocs2_msgs
+        ocs2_ros_interfaces
+        ocs2_legged_robot_ros
+        ocs2_self_collision_visualization
+        ocs2_sqp
+        legged_common
+        legged_interface
+        legged_wbc
+        legged_estimation
+        pinocchio
         )
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${OCS2_CXX_FLAGS})
+pluginlib_export_plugin_description_file(controller_interface legged_controllers_plugins.xml)
 
 
 # Target trajectories publish node
@@ -70,11 +65,16 @@ add_executable(legged_target_trajectories_publisher
         )
 add_dependencies(legged_target_trajectories_publisher
         ${PROJECT_NAME}
-        ${catkin_EXPORTED_TARGETS}
         )
-target_link_libraries(legged_target_trajectories_publisher
-        ${PROJECT_NAME}
-        ${catkin_LIBRARIES}
+target_link_libraries(legged_target_trajectories_publisher ${PROJECT_NAME})
+ament_target_dependencies(legged_target_trajectories_publisher
+        rclcpp
+        geometry_msgs
+        tf2
+        tf2_geometry_msgs
+        tf2_ros
+        ocs2_msgs
+        ocs2_ros_interfaces
         )
 target_compile_options(legged_target_trajectories_publisher PRIVATE ${OCS2_CXX_FLAGS})
 
@@ -98,18 +98,60 @@ endif (cmake_clang_tools_FOUND)
 
 # Mark executables and/or libraries for installation
 install(TARGETS ${PROJECT_NAME}
-        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+        EXPORT export_${PROJECT_NAME}
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+        )
+
+install(TARGETS legged_target_trajectories_publisher
+        RUNTIME DESTINATION lib/${PROJECT_NAME}
         )
 
 # Mark cpp header files for installation
 install(DIRECTORY include/${PROJECT_NAME}/
-        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+        DESTINATION include/${PROJECT_NAME}
         FILES_MATCHING PATTERN "*.h"
         )
 
 # Install plugins
 install(FILES legged_controllers_plugins.xml
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+        DESTINATION share/${PROJECT_NAME}
         )
+
+install(DIRECTORY config
+        DESTINATION share/${PROJECT_NAME}
+        )
+
+install(DIRECTORY launch
+        DESTINATION share/${PROJECT_NAME}
+        )
+
+install(PROGRAMS scripts/joy_control.py
+        DESTINATION lib/${PROJECT_NAME}
+        RENAME joy_control
+        )
+
+ament_export_include_directories(include)
+ament_export_libraries(${PROJECT_NAME})
+ament_export_dependencies(
+        rclcpp
+        rclcpp_lifecycle
+        controller_interface
+        hardware_interface
+        pluginlib
+        angles
+        ocs2_msgs
+        ocs2_ros_interfaces
+        ocs2_legged_robot_ros
+        ocs2_self_collision_visualization
+        ocs2_sqp
+        legged_common
+        legged_interface
+        legged_wbc
+        legged_estimation
+        pinocchio
+        )
+ament_export_targets(export_${PROJECT_NAME})
+
+ament_package()

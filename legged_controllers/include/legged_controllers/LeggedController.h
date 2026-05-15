@@ -4,14 +4,15 @@
 
 #pragma once
 
-#include <controller_interface/multi_interface_controller.h>
-#include <hardware_interface/imu_sensor_interface.h>
+#include <controller_interface/controller_interface.hpp>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <legged_common/hardware_interface/ContactSensorInterface.h>
 
 #include <ocs2_centroidal_model/CentroidalModelRbdConversions.h>
 #include <ocs2_core/misc/Benchmark.h>
 #include <ocs2_legged_robot_ros/visualization/LeggedRobotVisualizer.h>
 #include <ocs2_mpc/MPC_MRT_Interface.h>
+#include <ocs2_msgs/msg/mpc_observation.hpp>
 
 #include <legged_estimation/StateEstimateBase.h>
 #include <legged_interface/LeggedInterface.h>
@@ -24,18 +25,20 @@ namespace legged {
 using namespace ocs2;
 using namespace legged_robot;
 
-class LeggedController : public controller_interface::MultiInterfaceController<HybridJointInterface, hardware_interface::ImuSensorInterface,
-                                                                               ContactSensorInterface> {
+class LeggedController : public controller_interface::ControllerInterface {
  public:
   LeggedController() = default;
   ~LeggedController() override;
-  bool init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& controller_nh) override;
-  void update(const ros::Time& time, const ros::Duration& period) override;
-  void starting(const ros::Time& time) override;
-  void stopping(const ros::Time& /*time*/) override { mpcRunning_ = false; }
+  controller_interface::CallbackReturn on_init() override;
+  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
+  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
+  controller_interface::CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+  controller_interface::CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
+  controller_interface::CallbackReturn on_deactivate(const rclcpp_lifecycle::State& previous_state) override;
+  controller_interface::return_type update(const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
  protected:
-  virtual void updateStateEstimation(const ros::Time& time, const ros::Duration& period);
+  virtual void updateStateEstimation(const rclcpp::Time& time, const rclcpp::Duration& period);
 
   virtual void setupLeggedInterface(const std::string& taskFile, const std::string& urdfFile, const std::string& referenceFile,
                                     bool verbose);
@@ -46,9 +49,9 @@ class LeggedController : public controller_interface::MultiInterfaceController<H
   // Interface
   std::shared_ptr<LeggedInterface> leggedInterface_;
   std::shared_ptr<PinocchioEndEffectorKinematics> eeKinematicsPtr_;
-  std::vector<HybridJointHandle> hybridJointHandles_;
-  std::vector<ContactSensorHandle> contactHandles_;
-  hardware_interface::ImuSensorHandle imuSensorHandle_;
+  std::vector<std::string> jointNames_;
+  std::vector<std::string> contactNames_;
+  std::string imuName_{"base_imu"};
 
   // State Estimation
   SystemObservation currentObservation_;
@@ -67,9 +70,15 @@ class LeggedController : public controller_interface::MultiInterfaceController<H
   // Visualization
   std::shared_ptr<LeggedRobotVisualizer> robotVisualizer_;
   std::shared_ptr<LeggedSelfCollisionVisualization> selfCollisionVisualization_;
-  ros::Publisher observationPublisher_;
+  rclcpp::Publisher<ocs2_msgs::msg::MpcObservation>::SharedPtr observationPublisher_;
+  rclcpp::Node::SharedPtr rosNode_;
+  rclcpp::executors::SingleThreadedExecutor rosExecutor_;
+  std::thread rosSpinThread_;
 
  private:
+  void starting(const rclcpp::Time& time);
+  void setHybridJointCommand(size_t jointIndex, scalar_t posDes, scalar_t velDes, scalar_t kp, scalar_t kd, scalar_t ff);
+
   std::thread mpcThread_;
   std::atomic_bool controllerRunning_{}, mpcRunning_{};
   benchmark::RepeatedTimer mpcTimer_;

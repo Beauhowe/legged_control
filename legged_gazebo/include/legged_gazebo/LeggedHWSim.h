@@ -38,27 +38,32 @@
 #pragma once
 
 #include <deque>
-#include <unordered_map>
+#include <string>
+#include <vector>
 
-#include <gazebo_ros_control/default_robot_hw_sim.h>
-#include <hardware_interface/imu_sensor_interface.h>
-#include <hardware_interface/joint_command_interface.h>
+#include <gazebo/physics/physics.hh>
+#include <gazebo_ros2_control/gazebo_system_interface.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 #include <legged_common/hardware_interface/ContactSensorInterface.h>
 #include <legged_common/hardware_interface/HybridJointInterface.h>
 
 namespace legged {
-struct HybridJointData {
-  hardware_interface::JointHandle joint_;
-  double posDes_{}, velDes_{}, kp_{}, kd_{}, ff_{};
+struct SimHybridJointData {
+  std::string name_;
+  gazebo::physics::JointPtr joint_;
+  HybridJointState state_;
+  HybridJointCommand command_;
 };
 
-struct HybridJointCommand {
-  ros::Time stamp_;
-  double posDes_{}, velDes_{}, kp_{}, kd_{}, ff_{};
+struct DelayedHybridJointCommand {
+  rclcpp::Time stamp_;
+  HybridJointCommand command_;
 };
 
 struct ImuData {
+  std::string name_;
   gazebo::physics::LinkPtr linkPtr_;
   double ori_[4];            // NOLINT(modernize-avoid-c-arrays)
   double oriCov_[9];         // NOLINT(modernize-avoid-c-arrays)
@@ -68,27 +73,41 @@ struct ImuData {
   double linearAccCov_[9];   // NOLINT(modernize-avoid-c-arrays)
 };
 
-class LeggedHWSim : public gazebo_ros_control::DefaultRobotHWSim {
+class LeggedHWSim : public gazebo_ros2_control::GazeboSystemInterface {
  public:
-  bool initSim(const std::string& robot_namespace, ros::NodeHandle model_nh, gazebo::physics::ModelPtr parent_model,
-               const urdf::Model* urdf_model, std::vector<transmission_interface::TransmissionInfo> transmissions) override;
-  void readSim(ros::Time time, ros::Duration period) override;
-  void writeSim(ros::Time time, ros::Duration period) override;
+  hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo& hardwareInfo) override;
+
+  std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
+
+  std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
+
+  hardware_interface::return_type read(const rclcpp::Time& time, const rclcpp::Duration& period) override;
+
+  hardware_interface::return_type write(const rclcpp::Time& time, const rclcpp::Duration& period) override;
+
+  bool initSim(rclcpp::Node::SharedPtr& model_nh, gazebo::physics::ModelPtr parent_model,
+               const hardware_interface::HardwareInfo& hardware_info, sdf::ElementPtr sdf) override;
 
  private:
-  void parseImu(XmlRpc::XmlRpcValue& imuDatas, const gazebo::physics::ModelPtr& parentModel);
-  void parseContacts(XmlRpc::XmlRpcValue& contactNames);
+  bool setupJoints(const hardware_interface::HardwareInfo& hardwareInfo);
+  bool setupImu(const hardware_interface::HardwareInfo& hardwareInfo);
+  bool setupContacts(const hardware_interface::HardwareInfo& hardwareInfo);
+  void updateGroundTruth(const rclcpp::Time& time);
 
-  HybridJointInterface hybridJointInterface_;
-  ContactSensorInterface contactSensorInterface_;
-  hardware_interface::ImuSensorInterface imuSensorInterface_;
+  rclcpp::Logger logger_{rclcpp::get_logger("legged_gazebo")};
 
+  gazebo::physics::ModelPtr parentModel_;
   gazebo::physics::ContactManager* contactManager_{};
+  gazebo::physics::LinkPtr baseLink_;
 
-  std::list<HybridJointData> hybridJointDatas_;
-  std::list<ImuData> imuDatas_;
-  std::unordered_map<std::string, std::deque<HybridJointCommand> > cmdBuffer_;
-  std::unordered_map<std::string, bool> name2contact_;
+  std::vector<SimHybridJointData> jointData_;
+  std::vector<double> contactStates_;
+  std::vector<std::string> contactNames_;
+  std::vector<std::string> contactLinkNames_;
+  std::vector<ImuData> imuData_;
+  std::vector<std::deque<DelayedHybridJointCommand>> cmdBuffer_;
+
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr groundTruthPublisher_;
 
   double delay_{};
 };

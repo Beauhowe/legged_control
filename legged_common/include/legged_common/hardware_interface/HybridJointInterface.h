@@ -2,91 +2,50 @@
 // Created by qiayuan on 2021/11/5.
 //
 #pragma once
-#include <hardware_interface/internal/hardware_resource_manager.h>
-#include <hardware_interface/joint_state_interface.h>
+
+#include <array>
+#include <string>
+
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
 
 namespace legged {
-class HybridJointHandle : public hardware_interface::JointStateHandle {
- public:
-  HybridJointHandle() = default;
 
-  HybridJointHandle(const JointStateHandle& js, double* posDes, double* velDes, double* kp, double* kd, double* ff)
-      : JointStateHandle(js), posDes_(posDes), velDes_(velDes), kp_(kp), kd_(kd), ff_(ff) {
-    if (posDes_ == nullptr) {
-      throw hardware_interface::HardwareInterfaceException("Cannot create handle '" + js.getName() +
-                                                           "'. Position desired data pointer is null.");
-    }
-    if (velDes_ == nullptr) {
-      throw hardware_interface::HardwareInterfaceException("Cannot create handle '" + js.getName() +
-                                                           "'. Velocity desired data pointer is null.");
-    }
-    if (kp_ == nullptr) {
-      throw hardware_interface::HardwareInterfaceException("Cannot create handle '" + js.getName() + "'. Kp data pointer is null.");
-    }
-    if (kd_ == nullptr) {
-      throw hardware_interface::HardwareInterfaceException("Cannot create handle '" + js.getName() + "'. Kd data pointer is null.");
-    }
-    if (ff_ == nullptr) {
-      throw hardware_interface::HardwareInterfaceException("Cannot create handle '" + js.getName() +
-                                                           "'. Feedforward data pointer is null.");
-    }
-  }
-  void setPositionDesired(double cmd) {
-    assert(posDes_);
-    *posDes_ = cmd;
-  }
-  void setVelocityDesired(double cmd) {
-    assert(velDes_);
-    *velDes_ = cmd;
-  }
-  void setKp(double cmd) {
-    assert(kp_);
-    *kp_ = cmd;
-  }
-  void setKd(double cmd) {
-    assert(kd_);
-    *kd_ = cmd;
-  }
-  void setFeedforward(double cmd) {
-    assert(ff_);
-    *ff_ = cmd;
-  }
-  void setCommand(double pos_des, double vel_des, double kp, double kd, double ff) {
-    setPositionDesired(pos_des);
-    setVelocityDesired(vel_des);
-    setKp(kp);
-    setKd(kd);
-    setFeedforward(ff);
-  }
-  double getPositionDesired() {
-    assert(posDes_);
-    return *posDes_;
-  }
-  double getVelocityDesired() {
-    assert(velDes_);
-    return *velDes_;
-  }
-  double getKp() {
-    assert(kp_);
-    return *kp_;
-  }
-  double getKd() {
-    assert(kd_);
-    return *kd_;
-  }
-  double getFeedforward() {
-    assert(ff_);
-    return *ff_;
-  }
+inline constexpr char HW_IF_POSITION_DESIRED[] = "position_desired";
+inline constexpr char HW_IF_VELOCITY_DESIRED[] = "velocity_desired";
+inline constexpr char HW_IF_KP[] = "kp";
+inline constexpr char HW_IF_KD[] = "kd";
+inline constexpr char HW_IF_FEEDFORWARD[] = "feedforward";
 
- private:
-  double* posDes_ = {nullptr};
-  double* velDes_ = {nullptr};
-  double* kp_ = {nullptr};
-  double* kd_ = {nullptr};
-  double* ff_ = {nullptr};
+inline constexpr std::array<const char*, 3> HYBRID_JOINT_STATE_INTERFACES = {
+    hardware_interface::HW_IF_POSITION,
+    hardware_interface::HW_IF_VELOCITY,
+    hardware_interface::HW_IF_EFFORT,
 };
 
-class HybridJointInterface : public hardware_interface::HardwareResourceManager<HybridJointHandle, hardware_interface::ClaimResources> {};
+inline constexpr std::array<const char*, 5> HYBRID_JOINT_COMMAND_INTERFACES = {
+    HW_IF_POSITION_DESIRED,
+    HW_IF_VELOCITY_DESIRED,
+    HW_IF_KP,
+    HW_IF_KD,
+    HW_IF_FEEDFORWARD,
+};
+
+struct HybridJointCommand {
+  double position_desired = 0.0;
+  double velocity_desired = 0.0;
+  double kp = 0.0;
+  double kd = 0.0;
+  double feedforward = 0.0;
+};
+
+struct HybridJointState {
+  double position = 0.0;
+  double velocity = 0.0;
+  double effort = 0.0;
+};
+
+inline std::string makeInterfaceName(const std::string& jointName, const std::string& interfaceName) {
+  return jointName + "/" + interfaceName;
+}
 
 }  // namespace legged

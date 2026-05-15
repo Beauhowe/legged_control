@@ -1,9 +1,9 @@
-<library path="lib/liblegged_hw_sim">
+<library path="legged_hw_sim">
     <class
             name="legged_gazebo/LeggedHWSim" type="legged::LeggedHWSim"
-            base_class_type="gazebo_ros_control::RobotHWSim">
+            base_class_type="gazebo_ros2_control::GazeboSystemInterface">
         <description>
-            The quadruped robot simulation interface which constructs joint handles from an SDF/URDF.
+            The quadruped robot simulation interface for gazebo_ros2_control.
         </description>
     </class>
 </library>

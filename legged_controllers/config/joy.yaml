@@ -3,14 +3,17 @@ teleop:
     type: topic
     message_type: geometry_msgs/Twist
     topic_name: cmd_vel
-    deadman_buttons: [ 4 ]
+    # 真机默认需要按住 deadman 键才发布 cmd_vel；仿真免 deadman 可用 joy_sim.yaml。
+    deadman_buttons: [4]
+    # Xbox 类：axes[2]/[5] 多为 LT/RT 扳机轴，静止时往往是 ±1 而非 0，勿映射到速度。
+    # 左摇杆 0/1，右摇杆 3/4（平移/转向只用摇杆轴）。
     axis_mappings:
-      - axis: 0
+      - axis: 3
         target: angular.z
         scale: 3.1415
       - axis: 1
         target: linear.x
         scale: 1.0
-      - axis: 2
+      - axis: 0
         target: linear.y
-        scale: 0.8
+        scale: 0.5

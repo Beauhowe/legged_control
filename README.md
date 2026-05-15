@@ -1,5 +1,7 @@
 # legged_control
 
+> ROS2 Humble 迁移版使用说明见 [README_ROS2.md](README_ROS2.md)。该文档包含构建、仿真、手柄控制、步态切换、主要节点/话题/参数，以及控制计算逻辑说明。
+
 > [!NOTE]
 > **This software is not supported anymore! The authors of this software are developing a completely new framework and are not working on this project anymore. Please excuse any inconvenience this might cause.**
 
@@ -258,9 +260,9 @@ generation of NUC, and the computing frequency of NMPC can be close to 200Hz.
 
 Deploying this framework to your robot is very simple, the steps are as follows:
 
-- Imitate the `UnitreeHW` class in legged_examples/legged_unitree/legged_unitree_hw
+- Imitate the `UnitreeHW` class in legged_robots/legged_unitree/legged_unitree_hw
   , inherit `LeggedHW` and implement the `read()` and `write()` functions of the hardware interface;
-- Imitate the legged_examples/legged_unitree/legged_unitree_description, write the xarco of the robot and generate the
+- Imitate the legged_robots/legged_unitree/legged_unitree_description, write the xarco of the robot and generate the
   URDF file, note that the names of the joint and link need to be the same as legged_unitree_description.
 
 ## Reference

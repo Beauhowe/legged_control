@@ -2,78 +2,85 @@ cmake_minimum_required(VERSION 3.10)
 project(legged_estimation)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-## Find catkin macros and libraries
-find_package(catkin REQUIRED
-        COMPONENTS
-        roscpp
-        ocs2_legged_robot
-        legged_common
-        realtime_tools
-        tf2_ros
-        )
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(realtime_tools REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(legged_common REQUIRED)
+find_package(ocs2_centroidal_model REQUIRED)
+find_package(ocs2_legged_robot REQUIRED)
+find_package(ocs2_pinocchio_interface REQUIRED)
+find_package(ocs2_robotic_tools REQUIRED)
+find_package(pinocchio REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem system log log_setup)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(pinocchio REQUIRED pinocchio)
-
-catkin_package(
-        INCLUDE_DIRS
-        include
-        LIBRARIES
-        ${PROJECT_NAME}
-        CATKIN_DEPENDS
-        roscpp
-        ocs2_legged_robot
-        legged_common
-        realtime_tools
-        tf2_ros
-)
-
-###########
-## Build ##
-###########
-
-include_directories(
-        include
-        ${catkin_INCLUDE_DIRS}
-        ${pinocchio_INCLUDE_DIRS}
-)
-
-link_directories(
-        ${pinocchio_LIBRARY_DIRS}
-)
-
-## Declare a cpp library
 add_library(${PROJECT_NAME}
         src/StateEstimateBase.cpp
         src/FromTopicEstimate.cpp
         src/LinearKalmanFilter.cpp
         )
 
-target_link_libraries(${PROJECT_NAME}
-        ${catkin_LIBRARIES}
-        ${pinocchio_LIBRARIES}
+target_include_directories(${PROJECT_NAME}
+        PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        )
+
+ament_target_dependencies(${PROJECT_NAME}
+        rclcpp
+        geometry_msgs
+        nav_msgs
+        realtime_tools
+        tf2
+        tf2_geometry_msgs
+        tf2_ros
+        legged_common
+        ocs2_centroidal_model
+        ocs2_legged_robot
+        ocs2_pinocchio_interface
+        ocs2_robotic_tools
+        pinocchio
         )
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${OCS2_CXX_FLAGS})
 
-
-# Mark executables and/or libraries for installation
 install(TARGETS ${PROJECT_NAME}
-        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+        EXPORT export_${PROJECT_NAME}
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
         )
 
-# Mark cpp header files for installation
 install(DIRECTORY include/${PROJECT_NAME}/
-        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+        DESTINATION include/${PROJECT_NAME}
         FILES_MATCHING PATTERN "*.h"
         )
 
-#########################
-###   CLANG TOOLING   ###
-#########################
+ament_export_include_directories(include)
+ament_export_libraries(${PROJECT_NAME})
+ament_export_dependencies(
+        rclcpp
+        geometry_msgs
+        nav_msgs
+        realtime_tools
+        tf2
+        tf2_geometry_msgs
+        tf2_ros
+        legged_common
+        ocs2_centroidal_model
+        ocs2_legged_robot
+        ocs2_pinocchio_interface
+        ocs2_robotic_tools
+        pinocchio
+        )
+ament_export_targets(export_${PROJECT_NAME})
+
 find_package(cmake_clang_tools QUIET)
 if (cmake_clang_tools_FOUND)
     message(STATUS "Run clang tooling for target " ${PROJECT_NAME})
@@ -85,3 +92,4 @@ if (cmake_clang_tools_FOUND)
     )
 endif (cmake_clang_tools_FOUND)
 
+ament_package()

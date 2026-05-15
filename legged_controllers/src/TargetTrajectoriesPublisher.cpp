@@ -92,14 +92,11 @@ TargetTrajectories cmdVelToTargetTrajectories(const vector_t& cmdVel, const Syst
 int main(int argc, char** argv) {
   const std::string robotName = "legged_robot";
 
-  // Initialize ros node
-  ::ros::init(argc, argv, robotName + "_target");
-  ::ros::NodeHandle nodeHandle;
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<rclcpp::Node>(robotName + "_target");
   // Get node parameters
-  std::string referenceFile;
-  std::string taskFile;
-  nodeHandle.getParam("/referenceFile", referenceFile);
-  nodeHandle.getParam("/taskFile", taskFile);
+  const auto referenceFile = node->declare_parameter<std::string>("referenceFile", "");
+  const auto taskFile = node->declare_parameter<std::string>("taskFile", "");
 
   loadData::loadCppDataType(referenceFile, "comHeight", COM_HEIGHT);
   loadData::loadEigenMatrix(referenceFile, "defaultJointState", DEFAULT_JOINT_STATE);
@@ -107,9 +104,9 @@ int main(int argc, char** argv) {
   loadData::loadCppDataType(referenceFile, "targetDisplacementVelocity", TARGET_DISPLACEMENT_VELOCITY);
   loadData::loadCppDataType(taskFile, "mpc.timeHorizon", TIME_TO_TARGET);
 
-  TargetTrajectoriesPublisher target_pose_command(nodeHandle, robotName, &goalToTargetTrajectories, &cmdVelToTargetTrajectories);
+  TargetTrajectoriesPublisher target_pose_command(node, robotName, &goalToTargetTrajectories, &cmdVelToTargetTrajectories);
 
-  ros::spin();
-  // Successful exit
+  rclcpp::spin(node);
+  rclcpp::shutdown();
   return 0;
 }
