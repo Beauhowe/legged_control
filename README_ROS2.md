@@ -91,6 +91,9 @@ legged_controller active
 第一次启动时 OCS2/CppAD 会在 `/tmp/legged_control/...` 生成动态库，配置控制器会较慢。后续启动会复用生成结果。
 
 ## 手柄控制
+```bash
+ros2 launch legged_controllers joy_control.launch.py robot_type:=go1 joy_device_id:=0
+```
 
 手柄控制由 `legged_controllers/scripts/joy_control.py` 实现，启动文件是：
 
@@ -529,12 +532,14 @@ ros2_control controller manager 配置：
 ```yaml
 controller_manager:
   ros__parameters:
-    update_rate: 500
+    update_rate: 1000
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
     legged_controller:
       type: legged/LeggedController
 ```
+
+当前 Go1 仿真使用 `1000 Hz` 控制器更新频率，尽量贴近原 ROS1/Gazebo 控制循环。降低该频率可能会让高速平移和快速转向更容易失稳。
 
 ## 常见问题
 
