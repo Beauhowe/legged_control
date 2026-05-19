@@ -2,16 +2,16 @@
 
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="lr_pro_description">
 
-    <!-- Constants for robot dimensions -->
+    <!-- 机器人尺寸常量 -->
     <xacro:property name="stick_mass" value="0.00001"/>
 
-    <!-- simplified collision value: from base_link box size="0.4 0.2 0.15" -->
+    <!-- 简化碰撞体尺寸：来自 base_link 的 box size="0.4 0.2 0.15" -->
     <xacro:property name="trunk_length" value="0.4"/>
     <xacro:property name="trunk_width" value="0.2"/>
     <xacro:property name="trunk_height" value="0.15"/>
 
-    <!-- These are kept for compatibility with A1-style macros.
-         lr_pro uses mesh collision for hip/thigh/calf, so these are fallback values. -->
+    <!-- 保留这些参数是为了兼容 A1 风格的通用宏。
+         lr_pro 的 hip/thigh/calf 使用 mesh 碰撞体时，这些值作为备用参数。 -->
     <xacro:property name="hip_radius" value="0.046"/>
     <xacro:property name="hip_length" value="0.04"/>
     <xacro:property name="thigh_shoulder_radius" value="0.041"/>
@@ -25,51 +25,51 @@
     <xacro:property name="calf_height" value="0.016"/>
     <xacro:property name="calf_x_offset" value="0.0"/>
 
-    <!-- from foot collision sphere radius="0.042" -->
+    <!-- 来自足端碰撞球半径 radius="0.042" -->
     <xacro:property name="foot_radius" value="0.042"/>
 
-    <!-- kinematic value -->
-    <!-- from FL/RL calf joint origin xyz="0 0.1323 -0.35" -->
+    <!-- 运动学参数 -->
+    <!-- 来自 FL/RL 小腿关节 origin xyz="0 0.1323 -0.35" -->
     <xacro:property name="thigh_offset" value="0.1323"/>
     <xacro:property name="thigh_length" value="0.35"/>
 
-    <!-- from foot_fixed origin xyz="0 0 -0.35" -->
+    <!-- 来自 foot_fixed 关节 origin xyz="0 0 -0.35" -->
     <xacro:property name="calf_length" value="0.35"/>
 
-    <!-- leg offset from trunk center value -->
-    <!-- from FL/FR/RL/RR hip joint origin xyz="+-0.259 +-0.072 0" -->
+    <!-- 腿部相对机身中心的偏移量 -->
+    <!-- 来自 FL/FR/RL/RR 髋关节 origin xyz="+-0.259 +-0.072 0" -->
     <xacro:property name="leg_offset_x" value="0.259"/>
     <xacro:property name="leg_offset_y" value="0.072"/>
     <xacro:property name="trunk_offset_z" value="0.0"/>
 
-    <!-- from thigh joint origin xyz="+-0.089 +-0.0395 0" -->
+    <!-- 来自大腿关节 origin xyz="+-0.089 +-0.0395 0" -->
     <xacro:property name="hip_offset_x" value="0.089"/>
     <xacro:property name="hip_offset" value="0.0395"/>
 
-    <!-- joint limits -->
+    <!-- 关节限位 -->
     <xacro:property name="damping" value="0"/>
     <xacro:property name="friction" value="0"/>
 
-    <!-- HAA / hip joint: lower="-0.698" upper="0.698" effort="350" velocity="15" -->
+    <!-- HAA / 髋外展关节：lower="-0.698" upper="0.698" effort="350" velocity="15" -->
     <xacro:property name="hip_position_max" value="0.698"/>
     <xacro:property name="hip_position_min" value="-0.698"/>
     <xacro:property name="hip_velocity_max" value="15"/>
     <xacro:property name="hip_torque_max" value="350"/>
 
-    <!-- HFE / thigh joint: lower="-2.840" upper="2.840" effort="350" velocity="15" -->
+    <!-- HFE / 髋俯仰关节：lower="-2.840" upper="2.840" effort="350" velocity="15" -->
     <xacro:property name="thigh_position_max" value="2.840"/>
     <xacro:property name="thigh_position_min" value="-2.840"/>
     <xacro:property name="thigh_velocity_max" value="15"/>
     <xacro:property name="thigh_torque_max" value="350"/>
 
-    <!-- KFE / calf joint: lower="-2.76634" upper="-0.68067" effort="350" velocity="15" -->
+    <!-- KFE / 膝关节：lower="-2.76634" upper="-0.68067" effort="350" velocity="15" -->
     <xacro:property name="calf_position_max" value="-0.68067"/>
     <xacro:property name="calf_position_min" value="-2.76634"/>
     <xacro:property name="calf_velocity_max" value="15"/>
     <xacro:property name="calf_torque_max" value="350"/>
 
-    <!-- dynamics inertial value -->
-    <!-- trunk / base_link -->
+    <!-- 动力学惯性参数 -->
+    <!-- 机身 / base_link -->
     <xacro:property name="trunk_mass" value="41.55318666"/>
     <xacro:property name="trunk_com_x" value="0.0036196"/>
     <xacro:property name="trunk_com_y" value="0.0020766"/>
@@ -81,7 +81,7 @@
     <xacro:property name="trunk_iyz" value="0.00028196"/>
     <xacro:property name="trunk_izz" value="1.78840665"/>
 
-    <!-- hip: using FL_hip as template -->
+    <!-- 髋部：以 FL_hip 作为模板 -->
     <xacro:property name="hip_mass" value="3.14861814"/>
     <xacro:property name="hip_com_x" value="0.059894"/>
     <xacro:property name="hip_com_y" value="0.012203"/>
@@ -93,7 +93,7 @@
     <xacro:property name="hip_iyz" value="-0.00000116"/>
     <xacro:property name="hip_izz" value="0.00282044"/>
 
-    <!-- thigh: using FL_thigh as template -->
+    <!-- 大腿：以 FL_thigh 作为模板 -->
     <xacro:property name="thigh_mass" value="4.62267861"/>
     <xacro:property name="thigh_com_x" value="-0.0095977"/>
     <xacro:property name="thigh_com_y" value="0.11103"/>
@@ -105,7 +105,7 @@
     <xacro:property name="thigh_iyz" value="0.00756963"/>
     <xacro:property name="thigh_izz" value="0.00794928"/>
 
-    <!-- calf -->
+    <!-- 小腿 -->
     <xacro:property name="calf_mass" value="0.65024748"/>
     <xacro:property name="calf_com_x" value="0.02051"/>
     <xacro:property name="calf_com_y" value="0.0000082897"/>
@@ -117,7 +117,7 @@
     <xacro:property name="calf_iyz" value="-0.00000074"/>
     <xacro:property name="calf_izz" value="0.00032368"/>
 
-    <!-- foot -->
+    <!-- 足端 -->
     <xacro:property name="foot_mass" value="0.17599179"/>
     <xacro:property name="foot_com_x" value="-0.0068215"/>
     <xacro:property name="foot_com_y" value="0.000000051068"/>
@@ -129,7 +129,7 @@
     <xacro:property name="foot_iyz" value="0.0"/>
     <xacro:property name="foot_izz" value="0.00011428"/>
 
-    <!-- sensor extrinsic parameters -->
+    <!-- 传感器外参 -->
     <xacro:property name="imu_x" value="0.0334"/>
     <xacro:property name="imu_y" value="-0.0172765"/>
     <xacro:property name="imu_z" value="0.0510469"/>

@@ -99,8 +99,7 @@ controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp
   selfCollisionVisualization_.reset(new LeggedSelfCollisionVisualization(leggedInterface_->getPinocchioInterface(),
                                                                          leggedInterface_->getGeometryInterface(), pinocchioMapping));
 
-  jointNames_ = {"LF_HAA", "LF_HFE", "LF_KFE", "LH_HAA", "LH_HFE", "LH_KFE",
-                 "RF_HAA", "RF_HFE", "RF_KFE", "RH_HAA", "RH_HFE", "RH_KFE"};
+  jointNames_ = leggedInterface_->modelSettings().jointNames;
   contactNames_ = leggedInterface_->modelSettings().contactNames3DoF;
 
   // State estimation

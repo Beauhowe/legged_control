@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- 单个驱动关节的 ros2_control 接口声明。 -->
+    <xacro:macro name="lr_pro_joint_ros2_control" params="name initial_position:=0.0">
+        <joint name="${name}">
+            <!-- 控制器输出的混合控制命令：期望位置、期望速度、PD 增益和前馈力矩。 -->
+            <command_interface name="position_desired"/>
+            <command_interface name="velocity_desired"/>
+            <command_interface name="kp"/>
+            <command_interface name="kd"/>
+            <command_interface name="feedforward"/>
+
+            <!-- 硬件或仿真返回的关节状态。 -->
+            <state_interface name="position">
+                <param name="initial_value">${initial_position}</param>
+            </state_interface>
+            <state_interface name="velocity"/>
+            <state_interface name="effort"/>
+        </joint>
+    </xacro:macro>
+
+    <!-- 足端接触传感器接口，名称需要和控制器配置中的 contactNames 保持一致。 -->
+    <xacro:macro name="lr_pro_foot_contact_ros2_control" params="name">
+        <sensor name="${name}">
+            <state_interface name="contact"/>
+        </sensor>
+    </xacro:macro>
+
+    <!-- lr_pro 的 ros2_control 系统接口。 -->
+    <xacro:macro name="lr_pro_ros2_control" params="hardware_plugin robot_type power_limit contact_threshold delay">
+        <ros2_control name="lr_pro_hw" type="system">
+            <hardware>
+                <!-- 仿真时通常使用 legged_gazebo/LeggedHWSim；实机时替换成 lr_pro 的硬件插件。 -->
+                <plugin>${hardware_plugin}</plugin>
+                <param name="robot_type">${robot_type}</param>
+                <param name="power_limit">${power_limit}</param>
+                <param name="contact_threshold">${contact_threshold}</param>
+                <param name="delay">${delay}</param>
+            </hardware>
+
+            <!-- 12 个腿部驱动关节，顺序保持 OCS2 默认模型顺序：LF, RF, LH, RH。 -->
+            <xacro:lr_pro_joint_ros2_control name="LF_HAA" initial_position="0.00"/>
+            <xacro:lr_pro_joint_ros2_control name="LF_HFE" initial_position="0.82"/>
+            <xacro:lr_pro_joint_ros2_control name="LF_KFE" initial_position="-1.64"/>
+            <xacro:lr_pro_joint_ros2_control name="RF_HAA" initial_position="0.00"/>
+            <xacro:lr_pro_joint_ros2_control name="RF_HFE" initial_position="0.82"/>
+            <xacro:lr_pro_joint_ros2_control name="RF_KFE" initial_position="-1.64"/>
+            <xacro:lr_pro_joint_ros2_control name="LH_HAA" initial_position="0.00"/>
+            <xacro:lr_pro_joint_ros2_control name="LH_HFE" initial_position="0.82"/>
+            <xacro:lr_pro_joint_ros2_control name="LH_KFE" initial_position="-1.64"/>
+            <xacro:lr_pro_joint_ros2_control name="RH_HAA" initial_position="0.00"/>
+            <xacro:lr_pro_joint_ros2_control name="RH_HFE" initial_position="0.82"/>
+            <xacro:lr_pro_joint_ros2_control name="RH_KFE" initial_position="-1.64"/>
+
+            <!-- 四个足端接触状态接口，同样保持 OCS2 默认顺序：LF, RF, LH, RH。 -->
+            <xacro:lr_pro_foot_contact_ros2_control name="LF_FOOT"/>
+            <xacro:lr_pro_foot_contact_ros2_control name="RF_FOOT"/>
+            <xacro:lr_pro_foot_contact_ros2_control name="LH_FOOT"/>
+            <xacro:lr_pro_foot_contact_ros2_control name="RH_FOOT"/>
+
+            <!-- IMU 状态接口，legged_controller 默认读取 base_imu。 -->
+            <sensor name="base_imu">
+                <state_interface name="orientation.x"/>
+                <state_interface name="orientation.y"/>
+                <state_interface name="orientation.z"/>
+                <state_interface name="orientation.w"/>
+                <state_interface name="angular_velocity.x"/>
+                <state_interface name="angular_velocity.y"/>
+                <state_interface name="angular_velocity.z"/>
+                <state_interface name="linear_acceleration.x"/>
+                <state_interface name="linear_acceleration.y"/>
+                <state_interface name="linear_acceleration.z"/>
+            </sensor>
+        </ros2_control>
+    </xacro:macro>
+
+</robot>

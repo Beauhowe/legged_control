@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [v0.0.1] - 2026-05-19 -lr-pro
+
+### Added
+
+- 新增 `legged_robots/lr_pro/lr_pro_description` ROS2 description 包，包含 lr_pro 的 mesh、模块化 xacro、ros2_control 接口和 Gazebo 启动入口。
+- 新增 `lr_pro_description/launch/display.launch.py`，支持发布 `robot_description`、启动 Gazebo Classic 并 spawn `lr_pro`。
+- 新增 `legged_robots/lr_pro/lr_pro_hw` ROS2 硬件接口包，包含 `lr_pro_hw/LrProHW` 插件导出、默认硬件配置和真机启动入口。
+- 新增 `legged_controllers/config/lr_pro` 控制参数目录，供 lr_pro 仿真控制器加载 task/reference/gait 配置。
+- 新增 `lr_pro_description/launch/lr_pro_sim.launch.py`，支持在 Gazebo Classic 中 spawn lr_pro 并自动加载 `joint_state_broadcaster` 与 `legged_controller`。
+
+### Changed
+
+- 将 lr_pro 机器人描述改为对标 A1 的顶层组装式 `robot.xacro`，拆分为 `const.xacro`、`leg.xacro`、`imu.xacro`、`ros2_control.xacro`、`gazebo.xacro` 和 `transmission.xacro`。
+
+### Fixed
+
+- 修复 lr_pro Gazebo 中 STL mesh 不显示的问题：将 mesh URI 从 `package://lr_pro_description/meshes` 调整为 Gazebo Classic 更稳定的 `file://$(find lr_pro_description)/meshes`。
+- 为 lr_pro 仿真 ros2_control 关节状态添加初始角度，并调整默认站立关节角与 spawn 高度，避免膝关节默认 0 角度导致起立前倾。
+- 为 lr_pro 仿真增加暂停启动流程：spawn 后通过 Gazebo `set_model_configuration` 设置初始站立关节角，controller 加载后再 unpause，避免模型从零关节角姿态自由下落。
+- 修正 legged_controller 使用的关节顺序，使其跟随 OCS2 `modelSettings.jointNames`，避免 RF/LH 状态和命令顺序错位。
+- `lr_pro_hw/LrProHW` 当前为硬件接入骨架：会导出关节、接触和 IMU 接口，并临时将 command 镜像到 state；真实机器人通信仍需接入 LR Pro 的 SDK 或底层协议。
+
+## [v0.0.0] - 2026-05-13 -ros2-migration
+
 ### Added
 
 - 新增 ROS2 Humble 使用说明文档 `README_ROS2.md`，覆盖构建、仿真启动、手柄控制、步态切换、节点职责和控制计算链路。
