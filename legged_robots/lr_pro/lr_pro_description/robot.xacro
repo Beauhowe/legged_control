@@ -1,6 +1,5 @@
 <robot name="lr_pro" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="ROBOT" default="lr_pro" />
-  <xacro:include filename="gazebo.xacro" />
 
   <!--  <?xml version="1.0" encoding="utf-8"?>-->
   <link
@@ -24,8 +23,7 @@
               xyz="0 0 0"
               rpy="0 0 0" />
       <geometry>
-        <!-- <mesh filename="../meshes/base_link.STL" /> -->
-         <box size="0.4 0.2 0.15"/>
+        <mesh filename="file://$(find lr_pro_description)/meshes/base_link.STL" />
       </geometry>
       <material
               name="">
@@ -258,7 +256,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FL_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FL_hip.STL" />
       </geometry>
       <material
               name="">
@@ -272,7 +270,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FL_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FL_hip.STL" />
       </geometry>
     </collision>
   </link>
@@ -312,7 +310,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FL_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FL_thigh.STL" />
       </geometry>
       <material
               name="">
@@ -326,7 +324,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FL_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FL_thigh.STL" />
       </geometry>
     </collision>
   </link>
@@ -366,7 +364,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FL_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FL_calf.STL" />
       </geometry>
       <material
               name="">
@@ -380,7 +378,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FL_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FL_calf.STL" />
       </geometry>
     </collision>
   </link>
@@ -420,7 +418,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FL_foot.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FL_foot.STL" />
       </geometry>
       <material
               name="">
@@ -473,7 +471,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FR_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FR_hip.STL" />
       </geometry>
       <material
               name="">
@@ -487,7 +485,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FR_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FR_hip.STL" />
       </geometry>
     </collision>
   </link>
@@ -527,7 +525,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FR_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FR_thigh.STL" />
       </geometry>
       <material
               name="">
@@ -541,7 +539,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FR_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FR_thigh.STL" />
       </geometry>
     </collision>
   </link>
@@ -581,7 +579,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FR_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FR_calf.STL" />
       </geometry>
       <material
               name="">
@@ -595,7 +593,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FR_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FR_calf.STL" />
       </geometry>
     </collision>
   </link>
@@ -635,7 +633,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/FR_foot.STL" />
+                filename="file://$(find lr_pro_description)/meshes/FR_foot.STL" />
       </geometry>
       <material
               name="">
@@ -688,7 +686,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RL_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RL_hip.STL" />
       </geometry>
       <material
               name="">
@@ -702,7 +700,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RL_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RL_hip.STL" />
       </geometry>
     </collision>
   </link>
@@ -742,7 +740,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RL_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RL_thigh.STL" />
       </geometry>
       <material
               name="">
@@ -756,7 +754,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RL_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RL_thigh.STL" />
       </geometry>
     </collision>
   </link>
@@ -796,7 +794,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RL_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RL_calf.STL" />
       </geometry>
       <material
               name="">
@@ -810,7 +808,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RL_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RL_calf.STL" />
       </geometry>
     </collision>
   </link>
@@ -850,7 +848,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RL_foot.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RL_foot.STL" />
       </geometry>
       <material
               name="">
@@ -903,7 +901,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RR_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RR_hip.STL" />
       </geometry>
       <material
               name="">
@@ -917,7 +915,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RR_hip.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RR_hip.STL" />
       </geometry>
     </collision>
   </link>
@@ -957,7 +955,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RR_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RR_thigh.STL" />
       </geometry>
       <material
               name="">
@@ -971,7 +969,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RR_thigh.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RR_thigh.STL" />
       </geometry>
     </collision>
   </link>
@@ -1011,7 +1009,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RR_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RR_calf.STL" />
       </geometry>
       <material
               name="">
@@ -1025,7 +1023,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RR_calf.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RR_calf.STL" />
       </geometry>
     </collision>
   </link>
@@ -1065,7 +1063,7 @@
               rpy="0 0 0" />
       <geometry>
         <mesh
-                filename="file://$(find lr_pro_description)/meshs_simpilfy/RR_foot.STL" />
+                filename="file://$(find lr_pro_description)/meshes/RR_foot.STL" />
       </geometry>
       <material
               name="">
