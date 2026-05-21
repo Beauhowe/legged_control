@@ -24,6 +24,8 @@
 #include <legged_wbc/WeightedWbc.h>
 #include <pluginlib/class_list_macros.hpp>
 
+#include <stdexcept>
+
 namespace legged {
 controller_interface::CallbackReturn LeggedController::on_init() {
   auto_declare<std::string>("urdfFile", "");
@@ -212,14 +214,16 @@ void LeggedController::updateStateEstimation(const rclcpp::Time& time, const rcl
   for (size_t i = 0; i < contactFlag.size(); ++i) {
     contactFlag[i] = state_interfaces_[contactOffset + i].get_value() > 0.5;
   }
-  const size_t imuOffset = contactOffset + contactNames_.size();
-  for (size_t i = 0; i < 4; ++i) {
-    quat.coeffs()(i) = state_interfaces_[imuOffset + i].get_value();
-  }
-  for (size_t i = 0; i < 3; ++i) {
-    angularVel(i) = state_interfaces_[imuOffset + 4 + i].get_value();
-    linearAccel(i) = state_interfaces_[imuOffset + 7 + i].get_value();
-  }
+  quat.x() = getStateInterfaceValue(imuName_ + "/orientation.x");
+  quat.y() = getStateInterfaceValue(imuName_ + "/orientation.y");
+  quat.z() = getStateInterfaceValue(imuName_ + "/orientation.z");
+  quat.w() = getStateInterfaceValue(imuName_ + "/orientation.w");
+  angularVel.x() = getStateInterfaceValue(imuName_ + "/angular_velocity.x");
+  angularVel.y() = getStateInterfaceValue(imuName_ + "/angular_velocity.y");
+  angularVel.z() = getStateInterfaceValue(imuName_ + "/angular_velocity.z");
+  linearAccel.x() = getStateInterfaceValue(imuName_ + "/linear_acceleration.x");
+  linearAccel.y() = getStateInterfaceValue(imuName_ + "/linear_acceleration.y");
+  linearAccel.z() = getStateInterfaceValue(imuName_ + "/linear_acceleration.z");
   orientationCovariance.setZero();
   angularVelCovariance.setZero();
   linearAccelCovariance.setZero();
@@ -233,6 +237,15 @@ void LeggedController::updateStateEstimation(const rclcpp::Time& time, const rcl
   currentObservation_.state = rbdConversions_->computeCentroidalStateFromRbdModel(measuredRbdState_);
   currentObservation_.state(9) = yawLast + angles::shortest_angular_distance(yawLast, currentObservation_.state(9));
   currentObservation_.mode = stateEstimate_->getMode();
+}
+
+double LeggedController::getStateInterfaceValue(const std::string& interfaceName) const {
+  for (const auto& stateInterface : state_interfaces_) {
+    if (stateInterface.get_name() == interfaceName) {
+      return stateInterface.get_value();
+    }
+  }
+  throw std::runtime_error("State interface not found: " + interfaceName);
 }
 
 LeggedController::~LeggedController() {

@@ -78,6 +78,7 @@ class LeggedController : public controller_interface::ControllerInterface {
  private:
   void starting(const rclcpp::Time& time);
   void setHybridJointCommand(size_t jointIndex, scalar_t posDes, scalar_t velDes, scalar_t kp, scalar_t kd, scalar_t ff);
+  double getStateInterfaceValue(const std::string& interfaceName) const;
 
   std::thread mpcThread_;
   std::atomic_bool controllerRunning_{}, mpcRunning_{};

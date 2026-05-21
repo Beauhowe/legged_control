@@ -50,23 +50,23 @@
     <xacro:property name="damping" value="0"/>
     <xacro:property name="friction" value="0"/>
 
-    <!-- HAA / hip joint: lower="-0.698" upper="0.698" effort="350" velocity="15" -->
+    <!-- HAA / hip joint: lower="-0.698" upper="0.698" effort="220" velocity="12" -->
     <xacro:property name="hip_position_max" value="0.698"/>
     <xacro:property name="hip_position_min" value="-0.698"/>
-    <xacro:property name="hip_velocity_max" value="15"/>
-    <xacro:property name="hip_torque_max" value="350"/>
+    <xacro:property name="hip_velocity_max" value="12"/>
+    <xacro:property name="hip_torque_max" value="220"/>
 
-    <!-- HFE / thigh joint: lower="-2.840" upper="2.840" effort="350" velocity="15" -->
+    <!-- HFE / thigh joint: lower="-2.840" upper="2.840" effort="220" velocity="12" -->
     <xacro:property name="thigh_position_max" value="2.840"/>
     <xacro:property name="thigh_position_min" value="-2.840"/>
-    <xacro:property name="thigh_velocity_max" value="15"/>
-    <xacro:property name="thigh_torque_max" value="350"/>
+    <xacro:property name="thigh_velocity_max" value="12"/>
+    <xacro:property name="thigh_torque_max" value="220"/>
 
-    <!-- KFE / calf joint: lower="-2.76634" upper="-0.68067" effort="350" velocity="15" -->
+    <!-- KFE / calf joint: lower="-2.76634" upper="-0.68067" effort="280" velocity="12" -->
     <xacro:property name="calf_position_max" value="-0.68067"/>
     <xacro:property name="calf_position_min" value="-2.76634"/>
-    <xacro:property name="calf_velocity_max" value="15"/>
-    <xacro:property name="calf_torque_max" value="350"/>
+    <xacro:property name="calf_velocity_max" value="12"/>
+    <xacro:property name="calf_torque_max" value="280"/>
 
     <!-- dynamics inertial value -->
     <!-- trunk / base_link -->
