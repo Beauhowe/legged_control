@@ -1,10 +1,41 @@
 # Changelog
 
-本文件记录 `legged_control` 从 ROS1/catkin 迁移到 ROS2 Humble/ament 过程中的主要变更。
+All notable changes to this project will be documented in this file.
 
-格式参考 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号当前沿用包内 `0.0.0` 开发版本。日期使用 UTC。
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.0.0] - 2026-05-21
+
+### Added
+
+- 新增 Gazebo Classic ROS2 启动文件 `legged_gazebo/launch/lr_pro_sim.launch.py`，用于生成 `lr_pro` Gazebo URDF、写入控制器参数、spawn 机器人并加载 `joint_state_broadcaster` 与 `legged_controller`。
+
+### Changed
+
+- 将 `lr_pro_description/robot.xacro` 从单体 URDF 重构为模块化 xacro 入口，复用通用 leg、IMU、ros2_control 和 Gazebo 宏生成机器人描述。
+- 调整 `lr_pro` 默认控制参数：将 MPC 期望频率改为 `1000 Hz`，将 reference 默认平移速度改为 `0.0`，默认质心高度改为 `0.4`。
+- 将 `lr_pro` URDF 关节 effort/velocity 限位对齐 ROS1 P1：HAA/HFE 为 `220/12`，KFE 为 `280/12`。
+
+### Fixed
+
+- 修复 `LeggedController` 读取 IMU 状态依赖 state interface 顺序的问题，改为按 `base_imu/...` 接口名称查找 orientation、angular velocity 和 linear acceleration。
+
+### Removed
+
+- 删除旧的 `legged_robots/lr_pro/lr_pro_description/urdf/lr_p1.urdf` 单体 URDF，`lr_pro` 描述改由模块化 xacro 生成。
+
+### Notes
+
+- 当前主要验证对象是 Unitree Go1 仿真。
+- A1 和 Aliengo 的模型与参数仍保留，但需要按机器人逐个重新验证 ROS2 仿真和真机行为。
+- `lr_pro`/P1 的上层控制顺序待统一到 OCS2 默认的 `LF, RF, LH, RH`：当前 OCS2 `ModelSettings` 默认 joint/contact 顺序为 `LF, RF, LH, RH`，而 `LeggedController`、`ros2_control.xacro` 和 `task.info` 的部分状态/接口顺序仍按 `LF, LH, RF, RH` 编排，后续应统一并把真实硬件电机顺序留在 hardware interface 内部映射。
+- 第一次启动控制器时，OCS2/CppAD 会在 `/tmp/legged_control/...` 生成动态库，配置阶段会比后续启动慢。
+- 真机实时调度仍依赖系统权限配置；没有 `SCHED_FIFO` 权限时会有 warning，但不阻止仿真启动。
+
+## [0.0.0] - 2026-05-13
 
 ### Added
 
@@ -66,10 +97,3 @@
 - 删除旧 ROS1 Unitree 入口实现：
   - `legged_unitree_hw/src/legged_unitree_hw.cpp`
 - 旧的 `legged_examples/legged_unitree/` ROS1 目录不再作为 ROS2 构建入口，内容已迁移到 `legged_robots/legged_unitree/`。
-
-### Notes
-
-- 当前主要验证对象是 Unitree Go1 仿真。
-- A1 和 Aliengo 的模型与参数仍保留，但需要按机器人逐个重新验证 ROS2 仿真和真机行为。
-- 第一次启动控制器时，OCS2/CppAD 会在 `/tmp/legged_control/...` 生成动态库，配置阶段会比后续启动慢。
-- 真机实时调度仍依赖系统权限配置；没有 `SCHED_FIFO` 权限时会有 warning，但不阻止仿真启动。

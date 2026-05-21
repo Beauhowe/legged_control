@@ -1,0 +1,13 @@
+# lr_pro_hw 默认硬件运行参数。
+# 当前文件先对齐 A1/Unitree 硬件包的参数形式，真实上机时可按 lr_pro 控制频率和通信延迟调整。
+lr_pro_hw:
+  # 硬件读写循环频率，单位 Hz。真实机器人应与底层电机通信周期匹配。
+  loop_frequency: 500
+  # 单周期允许的最大时间误差，单位秒；超过后通常用于报警或保护。
+  cycle_time_error_threshold: 0.002
+  # 实时线程优先级。需要系统允许 SCHED_FIFO 权限，否则可能只给 warning。
+  thread_priority: 95
+  # 功率/力矩限制占位参数，具体含义需要和 lr_pro 底层协议确认。
+  power_limit: 4
+  # 足端接触判定阈值，占位参数；真实实现可由足端力、电流或估计接触状态使用。
+  contact_threshold: 40

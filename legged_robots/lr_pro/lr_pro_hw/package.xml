@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+    <name>lr_pro_hw</name>
+    <version>0.0.0</version>
+    <description>ROS2 hardware interface for lr_pro.</description>
+    <maintainer email="liaoqiayuan@gmail.com">Qiayuan Liao</maintainer>
+    <license>BSD</license>
+    <author email="liaoqiayuan@gmail.com">Qiayuan Liao</author>
+
+    <!-- ament_cmake 是当前硬件插件包的构建系统。 -->
+    <buildtool_depend>ament_cmake</buildtool_depend>
+
+    <!-- 编译和运行时都需要的核心依赖。 -->
+    <depend>hardware_interface</depend>
+    <depend>legged_hw</depend>
+    <depend>pluginlib</depend>
+    <depend>rclcpp</depend>
+
+    <!-- launch/运行时依赖：启动 controller manager、生成 robot_description，并发布 TF。 -->
+    <exec_depend>controller_manager</exec_depend>
+    <exec_depend>launch</exec_depend>
+    <exec_depend>launch_ros</exec_depend>
+    <exec_depend>lr_pro_description</exec_depend>
+    <exec_depend>robot_state_publisher</exec_depend>
+    <exec_depend>xacro</exec_depend>
+
+    <export>
+        <build_type>ament_cmake</build_type>
+    </export>
+</package>

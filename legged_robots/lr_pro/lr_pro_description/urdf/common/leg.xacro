@@ -1,0 +1,210 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- 引入每条腿三个驱动关节的 transmission 描述。 -->
+    <xacro:include filename="transmission.xacro"/>
+
+    <!--
+      lr_pro 单腿模板。
+
+      prefix: 控制器使用的腿名前缀，取值 LF/RF/LH/RH。
+      mesh_prefix: 原始 mesh 文件名前缀，取值 FL/FR/RL/RR。
+      front_hind: 前腿为 1，后腿为 -1，用于镜像 x 方向。
+      side: 左腿为 1，右腿为 -1，用于镜像 y 方向。
+    -->
+    <xacro:macro name="lr_pro_leg" params="prefix mesh_path mesh_prefix front_hind side">
+        <!-- 髋部 link：mesh、碰撞体和惯量都按 front_hind/side 做镜像。 -->
+        <link name="${prefix}_hip">
+            <inertial>
+                <origin rpy="0 0 0" xyz="${hip_com_x*front_hind} ${hip_com_y*side} ${hip_com_z*front_hind*side}"/>
+                <mass value="${hip_mass}"/>
+                <inertia
+                        ixx="${hip_ixx}" ixy="${hip_ixy*front_hind*side}" ixz="${hip_ixz*side}"
+                        iyy="${hip_iyy}" iyz="${hip_iyz*front_hind}"
+                        izz="${hip_izz}"/>
+            </inertial>
+            <visual>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="${mesh_path}/${mesh_prefix}_hip.STL"/>
+                </geometry>
+                <material name="silver">
+                    <color rgba="0.75294 0.75294 0.75294 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="${mesh_path}/${mesh_prefix}_hip.STL"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- HAA 髋外展关节：连接 base 和 hip。 -->
+        <joint name="${prefix}_HAA" type="revolute">
+            <origin rpy="0 0 0" xyz="${leg_offset_x*front_hind} ${leg_offset_y*side} 0"/>
+            <parent link="base"/>
+            <child link="${prefix}_hip"/>
+            <axis xyz="1 0 0"/>
+            <dynamics damping="${damping}" friction="${friction}"/>
+            <limit lower="${hip_position_min}" upper="${hip_position_max}" effort="${hip_torque_max}" velocity="${hip_velocity_max}"/>
+        </joint>
+
+        <!-- Gazebo 物理模型的初始 HAA 角，避免仿真从零关节姿态掉落。 -->
+        <gazebo reference="${prefix}_HAA">
+            <initial_position>0.00</initial_position>
+        </gazebo>
+
+        <!-- 大腿 link：左右腿通过 side 镜像 y 方向的质心和惯量耦合项。 -->
+        <link name="${prefix}_thigh">
+            <inertial>
+                <origin rpy="0 0 0" xyz="${thigh_com_x} ${thigh_com_y*side} ${thigh_com_z}"/>
+                <mass value="${thigh_mass}"/>
+                <inertia
+                        ixx="${thigh_ixx}" ixy="${thigh_ixy*side}" ixz="${thigh_ixz}"
+                        iyy="${thigh_iyy}" iyz="${thigh_iyz*side}"
+                        izz="${thigh_izz}"/>
+            </inertial>
+            <visual>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="${mesh_path}/${mesh_prefix}_thigh.STL"/>
+                </geometry>
+                <material name="silver">
+                    <color rgba="0.75294 0.75294 0.75294 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="${mesh_path}/${mesh_prefix}_thigh.STL"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- HFE 髋俯仰关节：lr_pro 这里同时包含 x/y 偏移。 -->
+        <joint name="${prefix}_HFE" type="revolute">
+            <origin rpy="0 0 0" xyz="${hip_offset_x*front_hind} ${hip_offset*side} 0"/>
+            <parent link="${prefix}_hip"/>
+            <child link="${prefix}_thigh"/>
+            <axis xyz="0 1 0"/>
+            <dynamics damping="${damping}" friction="${friction}"/>
+            <limit lower="${thigh_position_min}" upper="${thigh_position_max}" effort="${thigh_torque_max}" velocity="${thigh_velocity_max}"/>
+        </joint>
+
+        <!-- Gazebo 物理模型的初始 HFE 角，和 controller 默认站姿保持一致。 -->
+        <gazebo reference="${prefix}_HFE">
+            <initial_position>0.62</initial_position>
+        </gazebo>
+
+        <!-- 小腿 link：使用 lr_pro 原始 URDF 中的小腿惯量和 mesh。 -->
+        <link name="${prefix}_calf">
+            <inertial>
+                <origin rpy="0 0 0" xyz="${calf_com_x} ${calf_com_y} ${calf_com_z}"/>
+                <mass value="${calf_mass}"/>
+                <inertia
+                        ixx="${calf_ixx}" ixy="${calf_ixy}" ixz="${calf_ixz}"
+                        iyy="${calf_iyy}" iyz="${calf_iyz}"
+                        izz="${calf_izz}"/>
+            </inertial>
+            <visual>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="${mesh_path}/${mesh_prefix}_calf.STL"/>
+                </geometry>
+                <material name="silver">
+                    <color rgba="0.75294 0.75294 0.75294 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="${mesh_path}/${mesh_prefix}_calf.STL"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- KFE 膝关节：y 偏移按左右腿镜像，z 偏移为大腿长度。 -->
+        <joint name="${prefix}_KFE" type="revolute">
+            <origin rpy="0 0 0" xyz="0 ${thigh_offset*side} ${-thigh_length}"/>
+            <parent link="${prefix}_thigh"/>
+            <child link="${prefix}_calf"/>
+            <axis xyz="0 1 0"/>
+            <dynamics damping="${damping}" friction="${friction}"/>
+            <limit lower="${calf_position_min}" upper="${calf_position_max}" effort="${calf_torque_max}" velocity="${calf_velocity_max}"/>
+        </joint>
+
+        <!-- Gazebo 物理模型的初始 KFE 角，和 controller 默认站姿保持一致。 -->
+        <gazebo reference="${prefix}_KFE">
+            <initial_position>-1.44</initial_position>
+        </gazebo>
+
+        <!-- 足端 link)：保留 mesh 可视化，碰撞体使用球体便于接触仿真。 -->
+        <link name="${prefix}_FOOT">
+            <inertial>
+                <origin rpy="0 0 0" xyz="${foot_com_x} ${foot_com_y} ${foot_com_z}"/>
+                <mass value="${foot_mass}"/>
+                <inertia
+                        ixx="${foot_ixx}" ixy="${foot_ixy}" ixz="${foot_ixz}"
+                        iyy="${foot_iyy}" iyz="${foot_iyz}"
+                        izz="${foot_izz}"/>
+            </inertial>
+            <visual>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="${mesh_path}/${mesh_prefix}_foot.STL"/>
+                </geometry>
+                <material name="silver">
+                    <color rgba="0.75294 0.75294 0.75294 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <geometry>
+                    <sphere radius="${foot_radius}"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- 足端固定关节：连接 calf 和 FOOT，用于接触 frame。 -->
+        <joint name="${prefix}_foot_fixed" type="fixed" dont_collapse="true">
+            <origin rpy="0 0 0" xyz="0 0 ${-calf_length}"/>
+            <parent link="${prefix}_calf"/>
+            <child link="${prefix}_FOOT"/>
+        </joint>
+
+        <!-- Gazebo 接触/摩擦参数，和 Unitree 模板保持相同风格。 -->
+        <gazebo reference="${prefix}_foot_fixed">
+            <disableFixedJointLumping>true</disableFixedJointLumping>
+        </gazebo>
+        <gazebo reference="${prefix}_hip">
+            <mu1>0.2</mu1>
+            <mu2>0.2</mu2>
+            <material>Gazebo/DarkGrey</material>
+        </gazebo>
+        <gazebo reference="${prefix}_thigh">
+            <mu1>0.2</mu1>
+            <mu2>0.2</mu2>
+            <self_collide>0</self_collide>
+            <material>Gazebo/DarkGrey</material>
+            <kp value="1000000.0"/>
+            <kd value="100.0"/>
+        </gazebo>
+        <gazebo reference="${prefix}_calf">
+            <mu1>0.6</mu1>
+            <mu2>0.6</mu2>
+            <self_collide>1</self_collide>
+        </gazebo>
+        <gazebo reference="${prefix}_FOOT">
+            <mu1>0.6</mu1>
+            <mu2>0.6</mu2>
+            <self_collide>1</self_collide>
+            <material>Gazebo/DarkGrey</material>
+            <kp value="1000000.0"/>
+            <kd value="100.0"/>
+        </gazebo>
+        <!-- 为本条腿生成 HAA/HFE/KFE 三个 transmission。 -->
+        <xacro:lr_pro_leg_transmission prefix="${prefix}"/>
+    </xacro:macro>
+</robot>
