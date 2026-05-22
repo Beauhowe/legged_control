@@ -1,4 +1,5 @@
 import os
+import sys
 
 import xacro
 import yaml
@@ -17,14 +18,23 @@ def launch_setup(context, *args, **kwargs):
     task_file = LaunchConfiguration("task_file").perform(context)
     reference_file = LaunchConfiguration("reference_file").perform(context)
 
-    description_share = get_package_share_directory("legged_unitree_description")
+    description_share = get_package_share_directory("legged_description")
     gazebo_share = get_package_share_directory("legged_gazebo")
     gazebo_ros_share = get_package_share_directory("gazebo_ros")
 
+    controllers_share = get_package_share_directory("legged_controllers")
+    _launch_dir = os.path.join(controllers_share, "launch")
+    if _launch_dir not in sys.path:
+        sys.path.insert(0, _launch_dir)
+    from generated_paths import get_generated_dir, resolve_task_file
+
+    task_file = resolve_task_file(task_file, robot_type)
+
     robot_xacro = os.path.join(description_share, "urdf", "robot.xacro")
     world_file = os.path.join(gazebo_share, "worlds", "empty_world.world")
-    generated_urdf = os.path.join("/tmp", f"legged_unitree_{robot_type}_gazebo.urdf")
-    controller_params_file = os.path.join("/tmp", f"legged_unitree_{robot_type}_gazebo_controllers.yaml")
+    generated_dir = get_generated_dir()
+    generated_urdf = os.path.join(generated_dir, f"{robot_type}.urdf")
+    controller_params_file = os.path.join(generated_dir, f"{robot_type}_gazebo_controllers.yaml")
 
     with open(controller_params_file, "w", encoding="utf-8") as params:
         yaml.safe_dump(

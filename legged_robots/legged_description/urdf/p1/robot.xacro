@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot">
+
+    <xacro:arg name="controller_params_file" default=""/>
+
+    <xacro:include filename="$(find legged_description)/urdf/common/materials.xacro"/>
+    <xacro:include filename="$(find legged_description)/urdf/p1/leg_p1.xacro"/>
+    <xacro:include filename="$(find legged_description)/urdf/common/gazebo.xacro"/>
+    <xacro:include filename="$(find legged_description)/urdf/common/imu.xacro"/>
+    <xacro:include filename="$(find legged_description)/urdf/common/ros2_control.xacro"/>
+
+    <xacro:include filename="$(find legged_description)/urdf/p1/const.xacro"/>
+
+    <xacro:arg name="hardware_plugin" default="legged_gazebo/LeggedHWSim"/>
+    <xacro:arg name="robot_type" default="p1"/>
+    <xacro:arg name="power_limit" default="4"/>
+    <xacro:arg name="contact_threshold" default="40"/>
+    <xacro:arg name="delay" default="0.009"/>
+
+    <xacro:property name="mesh_path" value="file://$(find legged_description)/meshes/p1"/>
+
+    <link name="base">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <mesh filename="${mesh_path}/trunk.dae" scale="1 1 1"/>
+            </geometry>
+            <material name="silver"/>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <box size="${trunk_length} ${trunk_width} ${trunk_height}"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <origin rpy="0 0 0" xyz="${trunk_com_x} ${trunk_com_y} ${trunk_com_z}"/>
+            <mass value="${trunk_mass}"/>
+            <inertia
+                    ixx="${trunk_ixx}" ixy="${trunk_ixy}" ixz="${trunk_ixz}"
+                    iyy="${trunk_iyy}" iyz="${trunk_iyz}"
+                    izz="${trunk_izz}"/>
+        </inertial>
+    </link>
+
+    <xacro:IMU connected_to="base" imu_name="base_imu" xyz="0. 0. 0." rpy="0. 0. 0."/>
+
+    <xacro:leg_p1 prefix="LF" mesh_path="${mesh_path}" mirror="1" mirror_dae="True" front_hind="1" front_hind_dae="True">
+        <origin rpy="0 0 0" xyz="${leg_offset_x} ${leg_offset_y} 0"/>
+    </xacro:leg_p1>
+
+    <xacro:leg_p1 prefix="LH" mesh_path="${mesh_path}" mirror="1" mirror_dae="True" front_hind="-1" front_hind_dae="False">
+        <origin rpy="0 0 0" xyz="${-leg_offset_x} ${leg_offset_y} 0"/>
+    </xacro:leg_p1>
+
+    <xacro:leg_p1 prefix="RF" mesh_path="${mesh_path}" mirror="-1" mirror_dae="False" front_hind="1" front_hind_dae="True">
+        <origin rpy="0 0 0" xyz="${leg_offset_x} ${-leg_offset_y} 0"/>
+    </xacro:leg_p1>
+
+    <xacro:leg_p1 prefix="RH" mesh_path="${mesh_path}" mirror="-1" mirror_dae="False" front_hind="-1" front_hind_dae="False">
+        <origin rpy="0 0 0" xyz="${-leg_offset_x} ${-leg_offset_y} 0"/>
+    </xacro:leg_p1>
+
+    <xacro:legged_unitree_ros2_control hardware_plugin="$(arg hardware_plugin)"
+                                       robot_type="$(arg robot_type)"
+                                       power_limit="$(arg power_limit)"
+                                       contact_threshold="$(arg contact_threshold)"
+                                       delay="$(arg delay)"/>
+
+</robot>

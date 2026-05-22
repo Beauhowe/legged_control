@@ -88,7 +88,7 @@ joint_state_broadcaster active
 legged_controller active
 ```
 
-第一次启动时 OCS2/CppAD 会在 `/tmp/legged_control/...` 生成动态库，配置控制器会较慢。后续启动会复用生成结果。
+第一次启动时 OCS2/CppAD 会在 `src/legged_control/legged_control/{robot_type}/` 生成动态库，配置控制器会较慢。后续启动会复用生成结果。若仓库不在 `/workspace/src/legged_control`，可设置环境变量 `LEGGED_CONTROL_REPO` 指向仓库根目录。
 
 ## 手柄控制
 ```bash
@@ -556,7 +556,7 @@ controller_manager:
 OCS2/CppAD 会生成并编译动态库到：
 
 ```text
-/tmp/legged_control/go1/...
+src/legged_control/legged_control/go1/...
 ```
 
 这是正常现象。后续启动会快很多。

@@ -1,0 +1,7 @@
+<library path="legged_unitree_hw_3_3_1">
+  <class name="legged_unitree_hw/UnitreeHW_3_3_1"
+         type="legged::UnitreeHW"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>Unitree hardware interface using Unitree SDK 3.3.1.</description>
+  </class>
+</library>
