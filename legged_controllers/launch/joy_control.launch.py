@@ -1,6 +1,7 @@
 """一键启动：joy_node、legged_target_trajectories_publisher、joy_control（cmd_vel + 步态组合键）。"""
 
 import os
+import sys
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -39,6 +40,12 @@ def _launch_setup(context, *_args, **_kwargs):
 
     if not task_file:
         task_file = os.path.join(pkg, "config", robot_type, "task.info")
+    _launch_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+    if _launch_dir not in sys.path:
+        sys.path.insert(0, _launch_dir)
+    from generated_paths import resolve_task_file
+
+    task_file = resolve_task_file(task_file, robot_type)
     if not reference_file:
         reference_file = os.path.join(pkg, "config", robot_type, "reference.info")
     if not gait_file:

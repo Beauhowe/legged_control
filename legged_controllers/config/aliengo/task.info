@@ -12,7 +12,7 @@ model_settings
 
   verboseCppAd                  true
   recompileLibrariesCppAd       false
-  modelFolderCppAd              /tmp/legged_control/aliengo
+  modelFolderCppAd              /workspace/src/legged_control/legged_control/aliengo
 }
 
 swing_trajectory_config

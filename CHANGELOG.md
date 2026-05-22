@@ -7,33 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.0] - 2026-05-21
+## [0.0.1] - 2026-05-22
 
 ### Added
 
-- 新增 Gazebo Classic ROS2 启动文件 `legged_gazebo/launch/lr_pro_sim.launch.py`，用于生成 `lr_pro` Gazebo URDF、写入控制器参数、spawn 机器人并加载 `joint_state_broadcaster` 与 `legged_controller`。
+- 新增 P1 ROS2 仿真启动与模型资源，包含 p1 launch、控制配置、URDF/xacro 和 mesh 资源。
 
 ### Changed
 
-- 将 `lr_pro_description/robot.xacro` 从单体 URDF 重构为模块化 xacro 入口，复用通用 leg、IMU、ros2_control 和 Gazebo 宏生成机器人描述。
-- 调整 `lr_pro` 默认控制参数：将 MPC 期望频率改为 `1000 Hz`，将 reference 默认平移速度改为 `0.0`，默认质心高度改为 `0.4`。
-- 将 `lr_pro` URDF 关节 effort/velocity 限位对齐 ROS1 P1：HAA/HFE 为 `220/12`，KFE 为 `280/12`。
+- 对齐 P1 ROS2 描述与 ROS1 模型参数，包括机身/腿部偏移、膝关节 lateral offset 和默认 p1 URDF 生成结果。
+- 调整 P1 mesh 内嵌材质，使 RViz 中机身、hip 和大腿显示为可见的白/深灰材质。
 
 ### Fixed
 
-- 修复 `LeggedController` 读取 IMU 状态依赖 state interface 顺序的问题，改为按 `base_imu/...` 接口名称查找 orientation、angular velocity 和 linear acceleration。
+- 修复 P1 后腿 hip visual 未按前后腿方向翻转，导致 RViz 中后腿 hip 看起来缺失的问题。
+- 修复 P1 大腿主 box collision 丢失 y 方向镜像偏移的问题，使左右腿碰撞体分别对齐到 `+0.13` 和 `-0.13`。
+- 修复 P1 thigh mesh 镜像、材质和生成 URDF 中的若干 ROS1 到 ROS2 移植差异。
 
-### Removed
-
-- 删除旧的 `legged_robots/lr_pro/lr_pro_description/urdf/lr_p1.urdf` 单体 URDF，`lr_pro` 描述改由模块化 xacro 生成。
-
-### Notes
-
-- 当前主要验证对象是 Unitree Go1 仿真。
-- A1 和 Aliengo 的模型与参数仍保留，但需要按机器人逐个重新验证 ROS2 仿真和真机行为。
-- `lr_pro`/P1 的上层控制顺序待统一到 OCS2 默认的 `LF, RF, LH, RH`：当前 OCS2 `ModelSettings` 默认 joint/contact 顺序为 `LF, RF, LH, RH`，而 `LeggedController`、`ros2_control.xacro` 和 `task.info` 的部分状态/接口顺序仍按 `LF, LH, RF, RH` 编排，后续应统一并把真实硬件电机顺序留在 hardware interface 内部映射。
-- 第一次启动控制器时，OCS2/CppAD 会在 `/tmp/legged_control/...` 生成动态库，配置阶段会比后续启动慢。
-- 真机实时调度仍依赖系统权限配置；没有 `SCHED_FIFO` 权限时会有 warning，但不阻止仿真启动。
 
 ## [0.0.0] - 2026-05-13
 

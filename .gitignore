@@ -49,3 +49,12 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+
+# Generated at launch (URDF, controller yaml, CppAD, patched task.info)
+legged_control/*.urdf
+legged_control/*_gazebo_controllers.yaml
+legged_control/*_task.info
+legged_control/go1/
+legged_control/aliengo/
+legged_control/a1/
+legged_control/p1/
