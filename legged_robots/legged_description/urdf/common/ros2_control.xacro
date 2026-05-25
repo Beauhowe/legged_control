@@ -21,8 +21,8 @@
         </sensor>
     </xacro:macro>
 
-    <xacro:macro name="legged_unitree_ros2_control" params="hardware_plugin robot_type power_limit contact_threshold delay">
-        <ros2_control name="legged_unitree_hw" type="system">
+    <xacro:macro name="legged_ros2_control" params="hardware_plugin robot_type power_limit contact_threshold delay">
+        <ros2_control name="legged_hw" type="system">
             <hardware>
                 <plugin>${hardware_plugin}</plugin>
                 <param name="robot_type">${robot_type}</param>

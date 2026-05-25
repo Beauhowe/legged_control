@@ -63,7 +63,7 @@
         <origin rpy="0 0 0" xyz="${-leg_offset_x} ${-leg_offset_y} 0"/>
     </xacro:leg>
 
-    <xacro:legged_unitree_ros2_control hardware_plugin="$(arg hardware_plugin)"
+    <xacro:legged_ros2_control hardware_plugin="$(arg hardware_plugin)"
                                        robot_type="$(arg robot_type)"
                                        power_limit="$(arg power_limit)"
                                        contact_threshold="$(arg contact_threshold)"
