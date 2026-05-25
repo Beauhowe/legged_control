@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-05-25
+
+### Added
+
+- 新增 `legged_p1_hw` 真机硬件接口包，通过 Fast DDS 对接 P1 下位机电机状态、IMU 状态和电机命令。
+- 新增 P1 DDS 通讯封装 `P1DdsInterface`，将 DDS 回调缓存与 ros2_control `read()`/`write()` 周期解耦。
+- 新增 P1 接触力估计器 `P1ContactEstimator`，支持由关节力矩和单腿雅可比估算足端 `Fz`。
+- 新增 P1 真机启动文件 `legged_p1_hw/launch/p1.launch.py`，支持配置 DDS domain、话题名、关节映射、命令模式和接触估计参数。
+- 新增 P1 硬件接口 README，说明 DDS IDL、数据流、Go1 对齐关系、力矩标定和接触估计方式。
+
+### Changed
+
+- 扩展 P1/通用 ros2_control xacro 参数，支持 `dds_joint_order`、`contact_estimation_method`、`contact_force_threshold`、`current_to_torque_scale` 和 `current_to_torque_offset`。
+- P1 关节反馈将下位机电流通过可配置线性标定写入 `jointStates_[i].effort`，为后续真实关节力矩标定预留接口。
+- P1 接触状态支持 `current` 阈值模式和 `jacobian` 足端力估计模式。
+
+### Fixed
+
+- 为 P1 DDS 关节映射增加最终重复索引检查，避免 `dds_joint_index_*` 覆盖后多个控制关节映射到同一个 DDS index。
+
 ## [0.0.1] - 2026-05-25
 
 ### Changed

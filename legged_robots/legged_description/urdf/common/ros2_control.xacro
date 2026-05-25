@@ -21,7 +21,7 @@
         </sensor>
     </xacro:macro>
 
-    <xacro:macro name="legged_ros2_control" params="hardware_plugin robot_type power_limit contact_threshold delay">
+    <xacro:macro name="legged_ros2_control" params="hardware_plugin robot_type power_limit contact_threshold delay command_mode:=10 dds_domain:=0 dds_state_topic:=p1_motor_state dds_imu_topic:=p1_imu dds_command_topic:=p1_motor_cmd dds_joint_order:=LF_HAA,LF_HFE,LF_KFE,LH_HAA,LH_HFE,LH_KFE,RF_HAA,RF_HFE,RF_KFE,RH_HAA,RH_HFE,RH_KFE contact_estimation_method:=current contact_force_threshold:=40.0 current_to_torque_scale:=1.0 current_to_torque_offset:=0.0">
         <ros2_control name="legged_hw" type="system">
             <hardware>
                 <plugin>${hardware_plugin}</plugin>
@@ -29,6 +29,16 @@
                 <param name="power_limit">${power_limit}</param>
                 <param name="contact_threshold">${contact_threshold}</param>
                 <param name="delay">${delay}</param>
+                <param name="command_mode">${command_mode}</param>
+                <param name="dds_domain">${dds_domain}</param>
+                <param name="dds_state_topic">${dds_state_topic}</param>
+                <param name="dds_imu_topic">${dds_imu_topic}</param>
+                <param name="dds_command_topic">${dds_command_topic}</param>
+                <param name="dds_joint_order">${dds_joint_order}</param>
+                <param name="contact_estimation_method">${contact_estimation_method}</param>
+                <param name="contact_force_threshold">${contact_force_threshold}</param>
+                <param name="current_to_torque_scale">${current_to_torque_scale}</param>
+                <param name="current_to_torque_offset">${current_to_torque_offset}</param>
             </hardware>
 
             <xacro:legged_joint_ros2_control name="LF_HAA"/>

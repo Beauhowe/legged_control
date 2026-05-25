@@ -1,0 +1,7 @@
+<library path="legged_p1_hw">
+  <class name="legged_p1_hw/P1HW"
+         type="legged::P1HW"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>P1 hardware interface using Fast DDS.</description>
+  </class>
+</library>
