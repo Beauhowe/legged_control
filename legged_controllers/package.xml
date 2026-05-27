@@ -21,6 +21,7 @@
     <depend>hardware_interface</depend>
     <depend>pluginlib</depend>
     <depend>geometry_msgs</depend>
+    <depend>std_msgs</depend>
     <depend>tf2</depend>
     <depend>tf2_geometry_msgs</depend>
     <depend>tf2_ros</depend>

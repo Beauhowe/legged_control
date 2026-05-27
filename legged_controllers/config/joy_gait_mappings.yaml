@@ -2,10 +2,16 @@
 # 条件：所列 buttons 全部按下；从「非全按下」到「全按下」的上升沿触发一次（带 cooldown）
 # 按键编号：ros2 topic echo /joy 查看 buttons[]，或 jstest /dev/input/js0
 #
-# 默认（常见 Sony 布局）：R1=5, B=2 -> trot；R1=5, Y=3 -> stance
+# 默认（常见 Sony 布局）：R1=5, B=2 -> trot；R1=5, Y=3 -> stance；R1=5, A=0 -> lie_down
+# 急停：select=8 + start=9，触发后所有关节命令为 0；需要重启/重新激活控制链路恢复。
+
+emergency_stop:
+  buttons: [8, 9]
 
 mappings:
   - gait: trot
     buttons: [5, 2]
   - gait: stance
     buttons: [5, 3]
+  - gait: lie_down
+    buttons: [5, 0]

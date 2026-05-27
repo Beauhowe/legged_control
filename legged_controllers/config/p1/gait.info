@@ -12,6 +12,7 @@ list
   [9] lindyhop
   [10] skipping
   [11] pawup
+  [12] lie_down
 }
 
 stance
@@ -252,4 +253,17 @@ pawup
      [0]     0.0
      [1]     2.0
    }
+}
+
+lie_down
+{
+  modeSequence
+  {
+    [0]     STANCE
+  }
+  switchingTimes
+  {
+    [0]     0.0
+    [1]     2.0
+  }
 }

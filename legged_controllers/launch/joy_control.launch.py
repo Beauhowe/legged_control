@@ -36,6 +36,8 @@ def _launch_setup(context, *_args, **_kwargs):
 
     task_file = LaunchConfiguration("task_file").perform(context)
     reference_file = LaunchConfiguration("reference_file").perform(context)
+    stand_reference_file = LaunchConfiguration("stand_reference_file").perform(context)
+    lie_down_reference_file = LaunchConfiguration("lie_down_reference_file").perform(context)
     gait_file = LaunchConfiguration("gait_command_file").perform(context)
 
     if not task_file:
@@ -48,6 +50,10 @@ def _launch_setup(context, *_args, **_kwargs):
     task_file = resolve_task_file(task_file, robot_type)
     if not reference_file:
         reference_file = os.path.join(pkg, "config", robot_type, "reference.info")
+    if not stand_reference_file:
+        stand_reference_file = os.path.join(pkg, "config", robot_type, "reference.info")
+    if not lie_down_reference_file:
+        lie_down_reference_file = os.path.join(pkg, "config", robot_type, "reference_lie_down.info")
     if not gait_file:
         gait_file = os.path.join(pkg, "config", robot_type, "gait.info")
 
@@ -90,6 +96,8 @@ def _launch_setup(context, *_args, **_kwargs):
                 {"gait_command_file": gait_file},
                 {"joy_topic": joy_topic},
                 {"cmd_vel_topic": cmd_vel_topic},
+                {"stand_reference_file": stand_reference_file},
+                {"lie_down_reference_file": lie_down_reference_file},
             ],
         ),
     ]
@@ -134,6 +142,8 @@ def generate_launch_description():
             DeclareLaunchArgument("gait_mappings_file", default_value=default_mappings),
             DeclareLaunchArgument("task_file", default_value=""),
             DeclareLaunchArgument("reference_file", default_value=""),
+            DeclareLaunchArgument("stand_reference_file", default_value=""),
+            DeclareLaunchArgument("lie_down_reference_file", default_value=""),
             DeclareLaunchArgument("gait_command_file", default_value=""),
             OpaqueFunction(function=_launch_setup),
         ]

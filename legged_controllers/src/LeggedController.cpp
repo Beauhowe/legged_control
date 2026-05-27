@@ -24,6 +24,7 @@
 #include <legged_wbc/WeightedWbc.h>
 #include <pluginlib/class_list_macros.hpp>
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace legged {
@@ -32,6 +33,7 @@ controller_interface::CallbackReturn LeggedController::on_init() {
   auto_declare<std::string>("taskFile", "");
   auto_declare<std::string>("referenceFile", "");
   auto_declare<std::string>("imuName", "base_imu");
+  auto_declare<std::string>("emergencyStopTopic", "");
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -83,6 +85,20 @@ controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp
   }
 
   rosNode_ = std::make_shared<rclcpp::Node>(node->get_name() + std::string("_ros"));
+  auto emergencyStopTopic = node->get_parameter("emergencyStopTopic").as_string();
+  if (!emergencyStopTopic.empty()) {
+    if (emergencyStopTopic.front() != '/') {
+      emergencyStopTopic = "/" + emergencyStopTopic;
+    }
+    emergencyStopSubscriber_ = rosNode_->create_subscription<std_msgs::msg::Bool>(
+        emergencyStopTopic, rclcpp::QoS(1).reliable().transient_local(), [this](const std_msgs::msg::Bool::SharedPtr msg) {
+          emergencyStopActive_.store(msg->data);
+          if (!msg->data) {
+            emergencyStopLogged_ = false;
+          }
+        });
+    RCLCPP_INFO(rosNode_->get_logger(), "Controller emergency stop topic: %s", emergencyStopTopic.c_str());
+  }
   rosExecutor_.add_node(rosNode_);
   rosSpinThread_ = std::thread([this]() { rosExecutor_.spin(); });
 
@@ -152,9 +168,55 @@ void LeggedController::starting(const rclcpp::Time& time) {
   mpcRunning_ = true;
 }
 
+void LeggedController::resyncMpcAfterEmergencyStop() {
+  mpcAdvancePaused_.store(true);
+
+  TargetTrajectories target_trajectories({currentObservation_.time}, {currentObservation_.state}, {currentObservation_.input});
+  mpcMrtInterface_->reset();
+  mpcMrtInterface_->resetMpcNode(target_trajectories);
+  mpcMrtInterface_->setCurrentObservation(currentObservation_);
+
+  RCLCPP_WARN(rosNode_->get_logger(), "Emergency stop released, resynchronizing MPC at t=%.3f ...", currentObservation_.time);
+  rclcpp::Rate rate(leggedInterface_->mpcSettings().mrtDesiredFrequency_);
+  const int maxIterations = std::max(1, static_cast<int>(5.0 * leggedInterface_->mpcSettings().mrtDesiredFrequency_));
+  int iterations = 0;
+  while (!mpcMrtInterface_->initialPolicyReceived() && rclcpp::ok() && iterations < maxIterations) {
+    mpcMrtInterface_->advanceMpc();
+    ++iterations;
+    rate.sleep();
+  }
+
+  if (!mpcMrtInterface_->initialPolicyReceived()) {
+    RCLCPP_ERROR(rosNode_->get_logger(), "MPC resync timed out after emergency stop (t=%.3f).", currentObservation_.time);
+  } else {
+    RCLCPP_INFO(rosNode_->get_logger(), "MPC resynchronized after emergency stop (t=%.3f).", currentObservation_.time);
+  }
+
+  mpcAdvancePaused_.store(false);
+}
+
 controller_interface::return_type LeggedController::update(const rclcpp::Time& time, const rclcpp::Duration& period) {
   // State Estimate
   updateStateEstimation(time, period);
+
+  const bool emergencyStop = emergencyStopActive_.load();
+  mpcAdvancePaused_.store(emergencyStop);
+
+  if (previousEmergencyStopActive_ && !emergencyStop) {
+    resyncMpcAfterEmergencyStop();
+  }
+  previousEmergencyStopActive_ = emergencyStop;
+
+  if (emergencyStop) {
+    if (!emergencyStopLogged_) {
+      RCLCPP_ERROR(rosNode_->get_logger(), "[Legged Controller] Emergency stop active, zeroing all joint commands.");
+      emergencyStopLogged_ = true;
+    }
+    for (size_t j = 0; j < leggedInterface_->getCentroidalModelInfo().actuatedDofNum; ++j) {
+      setHybridJointCommand(j, 0, 0, 0, 0, 0);
+    }
+    return controller_interface::return_type::OK;
+  }
 
   // Update the current state of the system
   mpcMrtInterface_->setCurrentObservation(currentObservation_);
@@ -302,7 +364,7 @@ void LeggedController::setupMrt() {
       try {
         executeAndSleep(
             [&]() {
-              if (mpcRunning_) {
+              if (mpcRunning_ && !mpcAdvancePaused_.load()) {
                 mpcTimer_.startTimer();
                 mpcMrtInterface_->advanceMpc();
                 mpcTimer_.endTimer();

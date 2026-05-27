@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-05-27
+
+### Added
+- 新增 `p1_gait_dds_bridge` 节点，订阅 `P1_Gait::gait_command` 并按 `gait_id_mapping` 发布 `/cmd_vel` 与 `/legged_robot_mpc_mode_schedule`。
+- 新增 P1 `lie_down` gait 和低高度 `reference_lie_down.info`，用于默认趴下启动和仿真测试趴下姿态。
+- 扩展 `p1_gait_dds_bridge`，支持通过 DDS `gait_id` 上升沿发布站立/趴下 OCS2 target trajectory。
+- 将 P1 gait bridge 拆为 ROS-only bridge 与 FastDDS-only worker 两个进程，避免 ROS DDS 与下位机 Fast DDS 版本冲突。
+- 将 P1 主 DDS 通讯拆为 ROS 进程内 `P1DdsInterface` IPC 客户端与 FastDDS-only `p1_dds_worker`，避免 `ros2_control_node` 内加载下位机 Fast DDS。
+- 新增控制器和 P1 硬件层急停订阅，急停时暂停 MPC 推进并清零所有关节命令。
+- 新增 P1 真机 launch 内置 `legged_target_trajectories_publisher` 和 gait bridge 启动项，使实机 `/cmd_vel`、步态切换和站立/趴下 target 发布链路与仿真控制链路对齐。
+
+### Changed
+- P1 真机 launch 默认使用 `reference_lie_down.info` 启动，便于按“趴下 -> 站立 -> 步态运动”的实机流程控制。
+- P1 仿真 launch 默认也切换到 `reference_lie_down.info`，并支持向 `legged_controller` 传入 `emergencyStopTopic`。
+- P1 默认电流到关节力矩比例改为 `2.863 Nm/A`，对应当前关节输出端转矩常数。
+- 扩展手柄控制脚本，支持急停组合键、站立/趴下姿态 target 发布，以及静止步态下抑制速度命令。
+
+### Fixed
+- 控制器急停释放后重置并重新同步 MPC 初始策略，避免恢复控制时继续使用急停前的过期策略。
+
+
 ## [0.1.0] - 2026-05-25
 
 ### Added

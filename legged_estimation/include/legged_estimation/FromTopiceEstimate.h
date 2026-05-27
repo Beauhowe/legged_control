@@ -4,7 +4,7 @@
 
 #include "legged_estimation/StateEstimateBase.h"
 
-#include <realtime_tools/realtime_buffer.h>
+#include <realtime_tools/realtime_buffer.hpp>
 
 #pragma once
 namespace legged {

@@ -4,9 +4,14 @@
 #include <legged_p1_hw/P1ContactEstimator.h>
 #include <legged_p1_hw/P1DdsInterface.h>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <thread>
+
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 namespace legged {
 
@@ -35,6 +40,7 @@ class P1HW : public LeggedHW {
   void loadContactEstimationParameters(const hardware_interface::HardwareInfo& hardwareInfo);
   int findJointIndex(const std::string& jointName) const;
   double estimateJointTorque(size_t jointIndex, double current) const;
+  void setupEmergencyStop(const hardware_interface::HardwareInfo& hardwareInfo);
 
   // ros2_control 的 base_imu state interface 后端存储。
   std::array<double, 4> imuOrientation_{0.0, 0.0, 0.0, 1.0};
@@ -52,6 +58,12 @@ class P1HW : public LeggedHW {
   std::array<double, 12> currentToTorqueScale_{};
   std::array<double, 12> currentToTorqueOffset_{};
   P1ContactEstimator contactEstimator_;
+  std::atomic<bool> emergencyStopActive_{false};
+  bool emergencyStopLogged_{false};
+  rclcpp::Node::SharedPtr emergencyStopNode_;
+  rclcpp::executors::SingleThreadedExecutor emergencyStopExecutor_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr emergencyStopSubscriber_;
+  std::thread emergencyStopSpinThread_;
   std::unique_ptr<P1DdsInterface> dds_;
 };
 

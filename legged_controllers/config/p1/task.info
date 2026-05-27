@@ -12,7 +12,7 @@ model_settings
 
   verboseCppAd                  true
   ; Use P1 auto-diff libraries (was wrongly pointing to a1, causing MPC QP infeasibility).
-  recompileLibrariesCppAd       true
+  recompileLibrariesCppAd       false
   modelFolderCppAd              /workspace/src/legged_control/legged_control/p1
 }
 

@@ -11,6 +11,7 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(angles REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -43,6 +44,7 @@ ament_target_dependencies(${PROJECT_NAME}
         hardware_interface
         pluginlib
         angles
+        std_msgs
         ocs2_msgs
         ocs2_ros_interfaces
         ocs2_legged_robot_ros
@@ -141,6 +143,7 @@ ament_export_dependencies(
         hardware_interface
         pluginlib
         angles
+        std_msgs
         ocs2_msgs
         ocs2_ros_interfaces
         ocs2_legged_robot_ros

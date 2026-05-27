@@ -7,14 +7,8 @@
 #include <mutex>
 #include <string>
 
-#include <fastdds/dds/domain/DomainParticipant.hpp>
-#include <fastdds/dds/publisher/DataWriter.hpp>
-#include <fastdds/dds/publisher/Publisher.hpp>
-#include <fastdds/dds/subscriber/DataReader.hpp>
-#include <fastdds/dds/subscriber/DataReaderListener.hpp>
-#include <fastdds/dds/subscriber/Subscriber.hpp>
-#include <fastdds/dds/topic/Topic.hpp>
-#include <fastdds/dds/topic/TypeSupport.hpp>
+#include <thread>
+#include <sys/types.h>
 
 namespace legged {
 
@@ -73,37 +67,31 @@ class P1DdsInterface {
   bool writeCommand(const Command& command);
 
  private:
-  class MotorStatePubSubType;
-  class ImuStatePubSubType;
-  class CommandPubSubType;
-  class MotorStateListener;
-  class ImuStateListener;
+  enum class StatePacketTag : uint32_t { MotorState = 1, ImuState = 2 };
+
+  struct StatePacket {
+    StatePacketTag tag{StatePacketTag::MotorState};
+    MotorState motor_state{};
+    ImuState imu_state{};
+  };
 
   void updateMotorState(const MotorState& state);
   void updateImuState(const ImuState& state);
+  void stateReadLoop();
+  bool writeAll(int fd, const void* data, size_t size) const;
 
-  // DDS 回调线程写入最新状态，controller_manager 的 read() 线程读取。
+  // Worker 进程写入最新状态，controller_manager 的 read() 线程读取。
   mutable std::mutex stateMutex_;
   MotorState latestState_{};
   ImuState latestImuState_{};
   std::atomic<bool> hasState_{false};
   std::atomic<bool> hasImuState_{false};
 
-  // Fast DDS 实体生命周期由 init()/shutdown() 管理。
-  eprosima::fastdds::dds::DomainParticipant* participant_{nullptr};
-  eprosima::fastdds::dds::Publisher* publisher_{nullptr};
-  eprosima::fastdds::dds::Subscriber* subscriber_{nullptr};
-  eprosima::fastdds::dds::Topic* stateTopicHandle_{nullptr};
-  eprosima::fastdds::dds::Topic* imuTopicHandle_{nullptr};
-  eprosima::fastdds::dds::Topic* commandTopicHandle_{nullptr};
-  eprosima::fastdds::dds::DataReader* stateReader_{nullptr};
-  eprosima::fastdds::dds::DataReader* imuReader_{nullptr};
-  eprosima::fastdds::dds::DataWriter* commandWriter_{nullptr};
-  eprosima::fastdds::dds::TypeSupport stateType_;
-  eprosima::fastdds::dds::TypeSupport imuType_;
-  eprosima::fastdds::dds::TypeSupport commandType_;
-  std::unique_ptr<MotorStateListener> stateListener_;
-  std::unique_ptr<ImuStateListener> imuListener_;
+  std::atomic<bool> running_{false};
+  int stateReadFd_{-1};
+  int commandWriteFd_{-1};
+  pid_t workerPid_{-1};
+  std::thread stateThread_;
 };
 
 }  // namespace legged

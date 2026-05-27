@@ -13,12 +13,13 @@ import yaml
 
 import rclpy
 from geometry_msgs.msg import Twist
-from ocs2_msgs.msg import ModeSchedule
+from ocs2_msgs.msg import ModeSchedule, MpcInput, MpcObservation, MpcState, MpcTargetTrajectories
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Joy
+from std_msgs.msg import Bool
 
 # ocs2_legged_robot MotionPhaseDefinition.h
 MODE_NAME_TO_INT = {
@@ -132,6 +133,36 @@ def parse_gait_info(path: str) -> Dict[str, Tuple[List[float], List[int]]]:
     return gaits
 
 
+
+def load_posture_profile(path: str) -> Tuple[float, List[float]]:
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+    height_match = re.search(r"comHeight\s+([\d.+-eE]+)", content)
+    if not height_match:
+        raise ValueError(f"missing comHeight in {path}")
+    height = float(height_match.group(1))
+
+    block = _extract_braced_block(content, "defaultJointState")
+    if block is None:
+        raise ValueError(f"missing defaultJointState in {path}")
+
+    joints = [0.0] * 12
+    seen = [False] * 12
+    for line in block.splitlines():
+        m = re.search(r"\((\d+),0\)\s*([\d.+-eE]+)", line)
+        if not m:
+            continue
+        idx = int(m.group(1))
+        if idx < 0 or idx >= len(joints):
+            raise ValueError(f"defaultJointState index out of range in {path}: {idx}")
+        joints[idx] = float(m.group(2))
+        seen[idx] = True
+
+    if not all(seen):
+        raise ValueError(f"defaultJointState must contain 12 joints in {path}")
+    return height, joints
+
 def combo_active(msg: Joy, required: List[int], thresh: float) -> bool:
     if not required:
         return False
@@ -168,6 +199,26 @@ class JoyControl(Node):
         teleop_path = self.declare_parameter("teleop_config_file", "").value
         mappings_path = self.declare_parameter("gait_mappings_file", "").value
         gait_file = self.declare_parameter("gait_command_file", "").value
+        stand_reference_file = str(self.declare_parameter("stand_reference_file", "").value)
+        lie_down_reference_file = str(self.declare_parameter("lie_down_reference_file", "").value)
+        self._stand_gait_name = str(self.declare_parameter("stand_gait_name", "stance").value)
+        self._lie_down_gait_name = str(self.declare_parameter("lie_down_gait_name", "lie_down").value)
+        locomotion_gaits = str(self.declare_parameter("locomotion_gaits", "trot").value)
+        self._locomotion_gaits = {g.strip().lower() for g in locomotion_gaits.split(",") if g.strip()}
+        self._posture_transition_duration = float(self.declare_parameter("posture_transition_duration", 2.0).value)
+        emergency_stop_topic = str(self.declare_parameter("emergency_stop_topic", "/emergency_stop").value)
+        if not emergency_stop_topic.startswith("/"):
+            emergency_stop_topic = "/" + emergency_stop_topic
+        self._emergency_stop_buttons = [
+            int(x) for x in self.declare_parameter("emergency_stop_buttons", [8, 9]).value
+        ]
+
+        self._stand_profile: Optional[Tuple[float, List[float]]] = None
+        self._lie_down_profile: Optional[Tuple[float, List[float]]] = None
+        if stand_reference_file:
+            self._stand_profile = load_posture_profile(stand_reference_file)
+        if lie_down_reference_file:
+            self._lie_down_profile = load_posture_profile(lie_down_reference_file)
 
         self._teleop = self._load_teleop(str(teleop_path))
         cmd_topic: str = self.declare_parameter("cmd_vel_topic", "").value
@@ -182,6 +233,10 @@ class JoyControl(Node):
         raw_mappings: List[Dict[str, Any]] = []
         if str(mappings_path):
             raw_mappings = self._load_mappings(str(mappings_path))
+
+        emergency_stop_buttons = self._load_emergency_stop_buttons(str(mappings_path))
+        if emergency_stop_buttons is not None:
+            self._emergency_stop_buttons = emergency_stop_buttons
 
         if raw_mappings:
             if not str(gait_file):
@@ -202,8 +257,16 @@ class JoyControl(Node):
         self._last_gait_name: Optional[str] = None
         self._last_n_conn = 0
         self._last_cmd_zero = True
+        self._emergency_stop_active = False
 
         self._cmd_pub = self.create_publisher(Twist, cmd_topic, 10)
+
+        stop_qos = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+        self._emergency_stop_pub = self.create_publisher(Bool, emergency_stop_topic, stop_qos)
 
         mode_qos = QoSProfile(
             depth=1,
@@ -211,6 +274,16 @@ class JoyControl(Node):
             reliability=ReliabilityPolicy.RELIABLE,
         )
         self._mode_pub = self.create_publisher(ModeSchedule, mode_topic, mode_qos)
+
+        target_topic = str(self.declare_parameter("target_topic", f"/{robot_name}_mpc_target").value)
+        if not target_topic.startswith("/"):
+            target_topic = "/" + target_topic
+        observation_topic = str(self.declare_parameter("observation_topic", f"/{robot_name}_mpc_observation").value)
+        if not observation_topic.startswith("/"):
+            observation_topic = "/" + observation_topic
+        self._target_pub = self.create_publisher(MpcTargetTrajectories, target_topic, 1)
+        self._latest_observation: Optional[MpcObservation] = None
+        self.create_subscription(MpcObservation, observation_topic, self._observation_cb, 1)
 
         self.create_subscription(Joy, joy_topic, self._joy_cb, 1)
         self.create_timer(0.5, self._on_timer)
@@ -230,6 +303,9 @@ class JoyControl(Node):
             )
 
         self.get_logger().info(f"订阅 Joy: {joy_topic}；发布 Twist: {cmd_topic}")
+        self.get_logger().warn(
+            f"急停组合 buttons={self._emergency_stop_buttons}；触发后发布 {emergency_stop_topic}=true 并锁存"
+        )
         if self._mappings:
             self.get_logger().info(
                 f"步态: {gait_file}；已加载 {len(self._mappings)} 条组合映射"
@@ -290,6 +366,26 @@ class JoyControl(Node):
             out.append({"gait": g, "buttons": [int(x) for x in bt]})
         return out
 
+    def _load_emergency_stop_buttons(self, path: str) -> Optional[List[int]]:
+        if not path:
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+        if not isinstance(raw, dict):
+            return None
+        config = raw.get("emergency_stop")
+        if not isinstance(config, dict):
+            return None
+        buttons = config.get("buttons")
+        if not isinstance(buttons, list):
+            return None
+        return [int(x) for x in buttons]
+
+    def _publish_emergency_stop(self, active: bool) -> None:
+        msg = Bool()
+        msg.data = active
+        self._emergency_stop_pub.publish(msg)
+
     def _publish_gait(self, name: str) -> None:
         self._last_gait_name = name
         event_times, mode_sequence = self._gaits[name]
@@ -299,7 +395,53 @@ class JoyControl(Node):
         for _ in range(max(1, self._publish_repeats)):
             self._mode_pub.publish(msg)
             time.sleep(self._publish_repeat_dt)
+
+        if name == self._stand_gait_name and self._stand_profile is not None:
+            self._publish_posture_target(self._stand_profile, "stand")
+        elif name == self._lie_down_gait_name and self._lie_down_profile is not None:
+            self._publish_posture_target(self._lie_down_profile, "lie_down")
+
         self.get_logger().info(f"已发布步态 '{name}'")
+
+    def _observation_cb(self, msg: MpcObservation) -> None:
+        self._latest_observation = msg
+
+    def _publish_posture_target(self, profile: Tuple[float, List[float]], name: str) -> None:
+        if self._latest_observation is None:
+            self.get_logger().warn(f"跳过 {name} 姿态目标：还没有收到 MPC observation")
+            return
+
+        height, joints = profile
+        obs = self._latest_observation
+        if len(obs.state.value) < 24 or len(joints) != 12:
+            self.get_logger().warn(f"跳过 {name} 姿态目标：state/profile 维度不正确")
+            return
+
+        target = MpcTargetTrajectories()
+        target.time_trajectory = [float(obs.time), float(obs.time + self._posture_transition_duration)]
+
+        start_state = MpcState()
+        start_state.value = list(obs.state.value)
+        for i in range(min(6, len(start_state.value))):
+            start_state.value[i] = 0.0
+
+        end_state = MpcState()
+        end_state.value = [0.0] * len(obs.state.value)
+        end_state.value[6] = obs.state.value[6]
+        end_state.value[7] = obs.state.value[7]
+        end_state.value[8] = float(height)
+        end_state.value[9] = obs.state.value[9]
+        end_state.value[10] = 0.0
+        end_state.value[11] = 0.0
+        for i, q in enumerate(joints):
+            end_state.value[12 + i] = float(q)
+
+        zero_input = MpcInput()
+        zero_input.value = [0.0] * len(obs.input.value)
+        target.state_trajectory = [start_state, end_state]
+        target.input_trajectory = [zero_input, zero_input]
+        self._target_pub.publish(target)
+        self.get_logger().info(f"已发布 {name} 姿态目标 height={height:.3f}")
 
     def _republish_gait_light(self, name: str) -> None:
         event_times, mode_sequence = self._gaits[name]
@@ -370,16 +512,31 @@ class JoyControl(Node):
 
     def _joy_cb(self, msg: Joy) -> None:
         now = self.get_clock().now()
+        buttons = list(msg.buttons)
+        if self._prev_joy is None:
+            self._prev_joy = Joy()
+            self._prev_joy.buttons = [0] * len(buttons)
 
+        if self._debug:
+            self.get_logger().debug(f"buttons={buttons}")
+
+        emergency_now = combo_active(msg, self._emergency_stop_buttons, self._btn_thresh)
+        emergency_prev = combo_active(self._prev_joy, self._emergency_stop_buttons, self._btn_thresh)
+        if emergency_now and not emergency_prev:
+            self._emergency_stop_active = True
+            self._last_gait_name = None
+            self._publish_emergency_stop(True)
+            if not self._last_cmd_zero:
+                self._cmd_pub.publish(Twist())
+                self._last_cmd_zero = True
+            self.get_logger().fatal("急停已触发：已发布 emergency_stop=true，当前步态已清空")
+
+        if self._emergency_stop_active:
+            self._prev_joy = msg
+            return
+
+        gait_fired = False
         if self._mappings and self._gaits:
-            buttons = list(msg.buttons)
-            if self._prev_joy is None:
-                self._prev_joy = Joy()
-                self._prev_joy.buttons = [0] * len(buttons)
-
-            if self._debug:
-                self.get_logger().debug(f"buttons={buttons}")
-
             for m in self._mappings:
                 req = m["buttons"]
                 on_now = combo_active(msg, req, self._btn_thresh)
@@ -390,23 +547,27 @@ class JoyControl(Node):
                         break
                     self._last_fire = now
                     self._publish_gait(m["gait"])
+                    gait_fired = True
                     break
-
-            self._prev_joy = msg
 
         twist = Twist()
         if self._deadman_ok(msg):
             twist = self._make_twist(msg)
             self._apply_cmd_deadband(twist)
 
+        if gait_fired or self._last_gait_name not in self._locomotion_gaits:
+            twist = Twist()
+
         # Re-publishing zero velocity continuously makes the target generator
         # reset the target pose to the current drifting pose. Publish zero once
         # to stop, then keep the previous fixed target until a non-zero command.
         is_zero = self._is_zero_twist(twist)
         if is_zero and self._last_cmd_zero:
+            self._prev_joy = msg
             return
         self._cmd_pub.publish(twist)
         self._last_cmd_zero = is_zero
+        self._prev_joy = msg
 
 
 def main(args: Optional[List[str]] = None) -> None:

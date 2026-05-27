@@ -52,7 +52,12 @@ std::string P1HW::readStringParameter(const hardware_interface::HardwareInfo& ha
   return it == hardwareInfo.hardware_parameters.end() ? defaultValue : it->second;
 }
 
-P1HW::~P1HW() = default;
+P1HW::~P1HW() {
+  emergencyStopExecutor_.cancel();
+  if (emergencyStopSpinThread_.joinable()) {
+    emergencyStopSpinThread_.join();
+  }
+}
 
 int P1HW::findJointIndex(const std::string& jointName) const {
   const auto it = std::find(jointNames_.begin(), jointNames_.end(), jointName);
@@ -146,6 +151,25 @@ double P1HW::estimateJointTorque(size_t jointIndex, double current) const {
   return current * currentToTorqueScale_[jointIndex] + currentToTorqueOffset_[jointIndex];
 }
 
+void P1HW::setupEmergencyStop(const hardware_interface::HardwareInfo& hardwareInfo) {
+  auto topic = readStringParameter(hardwareInfo, "emergency_stop_topic", "/p1_emergency_stop");
+  if (!topic.empty() && topic.front() != '/') {
+    topic = "/" + topic;
+  }
+
+  emergencyStopNode_ = std::make_shared<rclcpp::Node>("legged_p1_hw_emergency_stop");
+  emergencyStopSubscriber_ = emergencyStopNode_->create_subscription<std_msgs::msg::Bool>(
+      topic, rclcpp::QoS(1).reliable().transient_local(), [this](const std_msgs::msg::Bool::SharedPtr msg) {
+        emergencyStopActive_.store(msg->data);
+        if (!msg->data) {
+          emergencyStopLogged_ = false;
+        }
+      });
+  emergencyStopExecutor_.add_node(emergencyStopNode_);
+  emergencyStopSpinThread_ = std::thread([this]() { emergencyStopExecutor_.spin(); });
+  RCLCPP_INFO(rclcpp::get_logger("legged_p1_hw"), "P1 hardware emergency stop topic: %s", topic.c_str());
+}
+
 // 初始化 ros2_control 通用接口后，再创建 P1 使用的 DDS 读写通道。
 hardware_interface::CallbackReturn P1HW::on_init(const hardware_interface::HardwareInfo& hardwareInfo) {
   if (LeggedHW::on_init(hardwareInfo) != hardware_interface::CallbackReturn::SUCCESS) {
@@ -169,6 +193,7 @@ hardware_interface::CallbackReturn P1HW::on_init(const hardware_interface::Hardw
   }
   loadTorqueEstimationParameters(hardwareInfo);
   loadContactEstimationParameters(hardwareInfo);
+  setupEmergencyStop(hardwareInfo);
   dds_ = std::make_unique<P1DdsInterface>();
   if (!dds_->init(domain, stateTopic, imuTopic, commandTopic)) {
     return hardware_interface::CallbackReturn::ERROR;
@@ -259,14 +284,21 @@ hardware_interface::return_type P1HW::write(const rclcpp::Time& time, const rclc
 
   P1DdsInterface::Command command;
   (void)time;
+  const bool emergencyStop = emergencyStopActive_.load();
+  if (emergencyStop && !emergencyStopLogged_) {
+    RCLCPP_ERROR(rclcpp::get_logger("legged_p1_hw"), "Emergency stop active, zeroing outgoing motor command.");
+    emergencyStopLogged_ = true;
+  }
   for (size_t i = 0; i < kJointCount; ++i) {
     const size_t ddsIndex = jointToDdsIndex_[i];
-    command.position_desired[ddsIndex] = static_cast<float>(jointCommands_[i].position_desired);
-    command.velocity_desired[ddsIndex] = static_cast<float>(jointCommands_[i].velocity_desired);
-    command.kp[ddsIndex] = static_cast<float>(jointCommands_[i].kp);
-    command.kd[ddsIndex] = static_cast<float>(jointCommands_[i].kd);
-    command.torque[ddsIndex] = static_cast<float>(jointCommands_[i].feedforward);
-    command.feedforward_torque[ddsIndex] = static_cast<float>(jointCommands_[i].feedforward);
+    if (!emergencyStop) {
+      command.position_desired[ddsIndex] = static_cast<float>(jointCommands_[i].position_desired);
+      command.velocity_desired[ddsIndex] = static_cast<float>(jointCommands_[i].velocity_desired);
+      command.kp[ddsIndex] = static_cast<float>(jointCommands_[i].kp);
+      command.kd[ddsIndex] = static_cast<float>(jointCommands_[i].kd);
+      command.torque[ddsIndex] = static_cast<float>(jointCommands_[i].feedforward);
+      command.feedforward_torque[ddsIndex] = static_cast<float>(jointCommands_[i].feedforward);
+    }
     command.mode[ddsIndex] = commandMode_;
   }
 

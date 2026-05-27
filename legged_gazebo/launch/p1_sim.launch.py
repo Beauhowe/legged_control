@@ -17,6 +17,7 @@ def launch_setup(context, *args, **kwargs):
     robot_type = LaunchConfiguration("robot_type").perform(context)
     task_file = LaunchConfiguration("task_file").perform(context)
     reference_file = LaunchConfiguration("reference_file").perform(context)
+    emergency_stop_topic = LaunchConfiguration("emergency_stop_topic").perform(context)
 
     description_share = get_package_share_directory("legged_description")
     gazebo_share = get_package_share_directory("legged_gazebo")
@@ -45,6 +46,7 @@ def launch_setup(context, *args, **kwargs):
                         "taskFile": task_file,
                         "referenceFile": reference_file,
                         "imuName": "base_imu",
+                        "emergencyStopTopic": emergency_stop_topic,
                     }
                 },
                 "legged_cheater_controller": {
@@ -53,6 +55,7 @@ def launch_setup(context, *args, **kwargs):
                         "taskFile": task_file,
                         "referenceFile": reference_file,
                         "imuName": "base_imu",
+                        "emergencyStopTopic": emergency_stop_topic,
                     }
                 },
             },
@@ -150,8 +153,9 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("robot_type", default_value="p1"),
             DeclareLaunchArgument("task_file", default_value=os.path.join(controllers_share, "config", "p1", "task.info")),
-            DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference.info")),
+            DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference_lie_down.info")),
             DeclareLaunchArgument("gui", default_value="true"),
+            DeclareLaunchArgument("emergency_stop_topic", default_value=""),
             OpaqueFunction(function=launch_setup),
         ]
     )
