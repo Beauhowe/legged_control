@@ -1,0 +1,25 @@
+repositories:
+  pinocchio:
+    type: git
+    url: git@github.com:AetherControl/pinocchio.git
+    version: p1-deploy
+
+  ocs2:
+    type: git
+    url: git@github.com:AetherControl/ocs2.git
+    version: p1-deploy
+
+  fastdds_bridge:
+    type: git
+    url: git@github.com:AetherControl/fastdds_bridge.git
+    version: p1-deploy
+
+  hpp-fcl:
+    type: git
+    url: git@github.com:leggedrobotics/hpp-fcl.git
+    version: master
+
+  ocs2_robotic_assets:
+    type: git
+    url: git@github.com:leggedrobotics/ocs2_robotic_assets.git
+    version: ros2

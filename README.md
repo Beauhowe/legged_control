@@ -1,6 +1,7 @@
 # legged_control
 
 > ROS2 Humble 迁移版使用说明见 [README_ROS2.md](README_ROS2.md)。该文档包含构建、仿真、手柄控制、步态切换、主要节点/话题/参数，以及控制计算逻辑说明。
+> 新机器部署时先 clone 本仓库，再运行 `scripts/import_dependencies.sh` 自动导入 `dependencies.repos` 中固定的源码依赖。
 
 > [!NOTE]
 > **This software is not supported anymore! The authors of this software are developing a completely new framework and are not working on this project anymore. Please excuse any inconvenience this might cause.**

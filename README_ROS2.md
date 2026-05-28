@@ -30,24 +30,64 @@ legged_robots/legged_unitree/  Unitree 描述与硬件接口
 qpoases_vendor/                qpOASES vendor package
 ```
 
+## 获取依赖源码
+
+本仓库只包含 `legged_control` 本体。当前工程还依赖同级 `src` 目录下的 `pinocchio`、`ocs2`、`fastdds_bridge`、`hpp-fcl` 和 `ocs2_robotic_assets`。其中 `pinocchio`、`ocs2`、`fastdds_bridge` 使用了 P1 部署相关修改，依赖版本由仓库根目录的 `dependencies.repos` 固定。
+
+新机器部署时推荐从工作区 `src` 目录执行：
+
+```bash
+mkdir -p ~/p1_ws/src
+cd ~/p1_ws/src
+
+git clone -b dev git@github.com:AetherControl/legged_control.git
+./legged_control/scripts/import_dependencies.sh
+```
+
+脚本会执行：
+
+```bash
+vcs import ~/p1_ws/src < legged_control/dependencies.repos
+git -C ~/p1_ws/src/pinocchio submodule update --init --recursive
+```
+
+如果系统没有 `vcs` 命令，先安装：
+
+```bash
+sudo apt install python3-vcstool
+```
+
+P1 DDS 相关包还需要 Fast DDS 本地安装路径。默认查找：
+
+```text
+~/p1_ws/src/env/fast_dds/local
+```
+
+如果 Fast DDS 安装在其他位置，构建前设置：
+
+```bash
+export FASTDDS_INSTALL_PREFIX=/path/to/fast_dds/local
+```
+
 ## 构建
 
 ```bash
 source /opt/ros/humble/setup.bash
-cd /workspace
+cd ~/p1_ws
 
-colcon build --base-paths /workspace/src \
+colcon build --base-paths src \
   --packages-up-to legged_gazebo legged_unitree_hw legged_controllers \
   --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_STANDARD=17
 
-source /workspace/install/setup.bash
+source install/setup.bash
 ```
 
 只改手柄或控制器相关代码时：
 
 ```bash
-colcon build --base-paths /workspace/src --packages-select legged_controllers
-source /workspace/install/setup.bash
+colcon build --base-paths src --packages-select legged_controllers \
+  --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
+source install/setup.bash
 ```
 
 ## 快速启动仿真
