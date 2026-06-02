@@ -5,7 +5,7 @@ import xacro
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -103,7 +103,7 @@ def launch_setup(context, *args, **kwargs):
     spawn_entity = Node(
         package="gazebo_ros",
         executable="spawn_entity.py",
-        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.6"],
+        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.6", "-timeout", "180"],
         output="screen",
     )
 
@@ -144,7 +144,9 @@ def launch_setup(context, *args, **kwargs):
         )
     )
 
-    return [gzserver, gzclient, robot_state_publisher, spawn_entity, spawn_controllers]
+    disable_model_database = SetEnvironmentVariable("GAZEBO_MODEL_DATABASE_URI", "")
+
+    return [disable_model_database, gzserver, gzclient, robot_state_publisher, spawn_entity, spawn_controllers]
 
 
 def generate_launch_description():

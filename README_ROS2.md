@@ -54,7 +54,7 @@ git -C ~/p1_ws/src/pinocchio submodule update --init --recursive
 如果系统没有 `vcs` 命令，先安装：
 
 ```bash
-sudo apt install python3-vcstool
+sudo apt install vcstool
 ```
 
 P1 DDS 相关包还需要 Fast DDS 本地安装路径。默认查找：

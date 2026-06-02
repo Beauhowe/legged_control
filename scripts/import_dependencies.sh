@@ -7,7 +7,7 @@ src_dir="$(cd "${repo_root}/.." && pwd)"
 repos_file="${repo_root}/dependencies.repos"
 
 if ! command -v vcs >/dev/null 2>&1; then
-  echo "error: vcs is not installed. Install python3-vcstool first." >&2
+  echo "error: vcs is not installed. Install vcstool first." >&2
   exit 1
 fi
 

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-02
+
+### Changed
+- `p1_sim.launch.py` 与 `go1_sim.launch.py` 启动 Gazebo 前设置 `GAZEBO_MODEL_DATABASE_URI=`，避免离线或模型库访问慢时阻塞 world 加载。
+- `empty_world.world` 移除 Gazebo ROS system plugin 声明，改为仅由 `gzserver.launch.py` 的 `init`、`factory`、`force_system` 参数加载，避免 Gazebo 报 `incorrect plugin type`。
+### Fixed
+- 修复 Gazebo Classic 首次启动访问在线模型库过慢时，`spawn_entity.py` 默认 30 秒等待 `/spawn_entity` 超时退出的问题；P1 与 Go1 仿真 spawn timeout 提高到 180 秒。
+
 ## [0.2.0] - 2026-06-01
 
 ### Added
@@ -17,8 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LeggedHWSim` 命令缓冲延迟由固定 `0.009 s` 改为 `delay_cycles × period`，降低外环降频后延迟标定失准。
 - `controllers.yaml`、`config/p1/task.info`、`legged_control/p1_task.info` 增加注释：`update_rate` 必须与 `mpc.mrtDesiredFrequency` 一致；`go1/task.info` 同步注释说明。
 - `empty_world.world` 增加说明：`max_step_size × real_time_update_rate` 决定仿真实时因子，须与外环频率策略一致。
+
 ### Fixed
 - 缓解因 **标称 MRT 频率与实际 `controller_manager` 周期不一致** 导致的原地 trot 缓慢横向漂移（需配置侧三处对齐，见下方说明）。
+
 ### Notes / 迁移说明
 - **仿真稳定推荐**：`empty_world.world` 使用 `max_step_size=0.001`、`real_time_update_rate=1000`，且 `controllers.yaml` 的 `update_rate` 与 `task.info` 的 `mrtDesiredFrequency` 均为 **1000**。
 - 若将外环改为 500 Hz，须同时将 world 改为 `max_step_size=0.002`、`real_time_update_rate=500`，**不可** 仅改 yaml/task 而 Gazebo 仍为 1000 Hz 物理步进。
