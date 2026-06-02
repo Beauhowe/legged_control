@@ -67,6 +67,7 @@ def launch_setup(context, *args, **kwargs):
             "power_limit": "4",
             "contact_threshold": "40",
             "delay": "0.009",
+            "delay_cycles": "9",
             "controller_params_file": controller_params_file,
         },
     )
@@ -99,7 +100,7 @@ def launch_setup(context, *args, **kwargs):
     spawn_entity = Node(
         package="gazebo_ros",
         executable="spawn_entity.py",
-        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.5"],
+        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.4"],
         output="screen",
     )
 

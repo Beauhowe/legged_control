@@ -26,8 +26,10 @@
     <xacro:arg name="dds_joint_order" default="LF_HAA,LF_HFE,LF_KFE,LH_HAA,LH_HFE,LH_KFE,RF_HAA,RF_HFE,RF_KFE,RH_HAA,RH_HFE,RH_KFE"/>
     <xacro:arg name="contact_estimation_method" default="current"/>
     <xacro:arg name="contact_force_threshold" default="40.0"/>
-    <xacro:arg name="current_to_torque_scale" default="2.863"/>
+    <xacro:arg name="current_to_torque_scale" default="1"/>
     <xacro:arg name="current_to_torque_offset" default="0.0"/>
+    <xacro:arg name="feedforward_torque_slew_rate" default="150.0"/>
+    <xacro:arg name="max_feedforward_torque" default="0.0"/>
 
     <xacro:property name="mesh_path" value="file://$(find legged_description)/meshes/p1"/>
 
@@ -88,6 +90,8 @@
                                        contact_estimation_method="$(arg contact_estimation_method)"
                                        contact_force_threshold="$(arg contact_force_threshold)"
                                        current_to_torque_scale="$(arg current_to_torque_scale)"
-                                       current_to_torque_offset="$(arg current_to_torque_offset)"/>
+                                       current_to_torque_offset="$(arg current_to_torque_offset)"
+                                       feedforward_torque_slew_rate="$(arg feedforward_torque_slew_rate)"
+                                       max_feedforward_torque="$(arg max_feedforward_torque)"/>
 
 </robot>

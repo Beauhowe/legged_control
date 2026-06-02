@@ -26,4 +26,7 @@ else
   echo "warning: ${src_dir}/pinocchio is missing; skip submodule initialization" >&2
 fi
 
+cd "${src_dir}"/hpp-fcl
+git submodule update --init --recursive
+
 echo "Dependencies are ready."

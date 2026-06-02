@@ -124,6 +124,10 @@ controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp
   // State estimation
   setupStateEstimate(taskFile, verbose);
 
+  mrtPeriod_ = 1.0 / leggedInterface_->mpcSettings().mrtDesiredFrequency_;
+  RCLCPP_INFO(rosNode_->get_logger(), "MRT period %.6f s (mrtDesiredFrequency=%.1f Hz). Match controller_manager update_rate.",
+              mrtPeriod_, leggedInterface_->mpcSettings().mrtDesiredFrequency_);
+
   // Whole body control
   wbc_ = std::make_shared<WeightedWbc>(leggedInterface_->getPinocchioInterface(), leggedInterface_->getCentroidalModelInfo(),
                                        *eeKinematicsPtr_);
@@ -146,9 +150,13 @@ controller_interface::CallbackReturn LeggedController::on_deactivate(const rclcp
 }
 
 void LeggedController::starting(const rclcpp::Time& time) {
+  controllerStartTime_ = time;
+  controllerClockStarted_ = true;
+  mrtPeriodMismatchWarned_ = false;
+
   // Initial state
   currentObservation_.state.setZero(leggedInterface_->getCentroidalModelInfo().stateDim);
-  updateStateEstimation(time, rclcpp::Duration::from_seconds(0.002));
+  updateStateEstimation(time, rclcpp::Duration::from_seconds(mrtPeriod_));
   currentObservation_.input.setZero(leggedInterface_->getCentroidalModelInfo().inputDim);
   currentObservation_.mode = ModeNumber::STANCE;
 
@@ -196,6 +204,16 @@ void LeggedController::resyncMpcAfterEmergencyStop() {
 }
 
 controller_interface::return_type LeggedController::update(const rclcpp::Time& time, const rclcpp::Duration& period) {
+  const scalar_t periodSec = period.seconds();
+  if (!mrtPeriodMismatchWarned_ && periodSec > 0.0 &&
+      std::abs(periodSec - mrtPeriod_) > 0.05 * mrtPeriod_) {
+    RCLCPP_WARN(rosNode_->get_logger(),
+                "Controller period %.4f s differs from task.info mrtDesiredFrequency (%.4f s, %.0f Hz). "
+                "In-place gaits may drift; set controller_manager update_rate to %.0f Hz.",
+                periodSec, mrtPeriod_, 1.0 / mrtPeriod_, 1.0 / mrtPeriod_);
+    mrtPeriodMismatchWarned_ = true;
+  }
+
   // State Estimate
   updateStateEstimation(time, period);
 
@@ -233,7 +251,7 @@ controller_interface::return_type LeggedController::update(const rclcpp::Time& t
   currentObservation_.input = optimizedInput;
 
   wbcTimer_.startTimer();
-  vector_t x = wbc_->update(optimizedState, optimizedInput, measuredRbdState_, plannedMode, period.seconds());
+  vector_t x = wbc_->update(optimizedState, optimizedInput, measuredRbdState_, plannedMode, periodSec);
   wbcTimer_.endTimer();
 
   vector_t torque = x.tail(12);
@@ -249,7 +267,7 @@ controller_interface::return_type LeggedController::update(const rclcpp::Time& t
   }
 
   for (size_t j = 0; j < leggedInterface_->getCentroidalModelInfo().actuatedDofNum; ++j) {
-    setHybridJointCommand(j, posDes(j), velDes(j), 0, 3, torque(j));
+    setHybridJointCommand(j, posDes(j), velDes(j), 270, 17, torque(j));
   }
 
   // Visualization
@@ -294,7 +312,11 @@ void LeggedController::updateStateEstimation(const rclcpp::Time& time, const rcl
   stateEstimate_->updateContact(contactFlag);
   stateEstimate_->updateImu(quat, angularVel, linearAccel, orientationCovariance, angularVelCovariance, linearAccelCovariance);
   measuredRbdState_ = stateEstimate_->update(time, period);
-  currentObservation_.time += period.seconds();
+  if (controllerClockStarted_) {
+    currentObservation_.time = (time - controllerStartTime_).seconds();
+  } else {
+    currentObservation_.time += period.seconds();
+  }
   scalar_t yawLast = currentObservation_.state(9);
   currentObservation_.state = rbdConversions_->computeCentroidalStateFromRbdModel(measuredRbdState_);
   currentObservation_.state(9) = yawLast + angles::shortest_angular_distance(yawLast, currentObservation_.state(9));

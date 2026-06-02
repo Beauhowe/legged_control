@@ -70,6 +70,7 @@ def launch_setup(context, *args, **kwargs):
             "power_limit": "4",
             "contact_threshold": "40",
             "delay": "0.009",
+            "delay_cycles": "9",
             "controller_params_file": controller_params_file,
         },
     )
@@ -102,7 +103,7 @@ def launch_setup(context, *args, **kwargs):
     spawn_entity = Node(
         package="gazebo_ros",
         executable="spawn_entity.py",
-        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.3"],
+        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.6"],
         output="screen",
     )
 
@@ -155,7 +156,7 @@ def generate_launch_description():
             DeclareLaunchArgument("task_file", default_value=os.path.join(controllers_share, "config", "p1", "task.info")),
             DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference_lie_down.info")),
             DeclareLaunchArgument("gui", default_value="true"),
-            DeclareLaunchArgument("emergency_stop_topic", default_value=""),
+            DeclareLaunchArgument("emergency_stop_topic", default_value="/p1_emergency_stop"),
             OpaqueFunction(function=launch_setup),
         ]
     )

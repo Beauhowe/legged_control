@@ -179,8 +179,10 @@ P1 的 ros2_control 接口语义和 Go1 的 `legged_unitree_hw/UnitreeHW` 主逻
 
 1. Go1 的 `tauEst` 是 SDK 直接给出的关节估计力矩；P1 当前只有电流反馈，所以 `jointStates_[i].effort` 依赖 `current_to_torque_scale` 和 `current_to_torque_offset` 标定。
 2. Go1 的接触状态来自足端 `footForce`；P1 的接触状态当前是估算值，不是直接传感器测量值。
-3. Go1 在发送命令前调用 SDK 的位置/功率保护；P1 当前假设下位机负责安全保护。若下位机没有完整保护，建议后续在 `P1HW::write()` 前补软件限位和功率/力矩限制。
-4. Go1 在每次 `read()` 后会重置部分命令默认值；P1 当前不重置命令，要求控制器按周期完整写入命令。
+3. Go1 在发送命令前调用 SDK 的位置/功率保护；P1 在 `P1HW::write()` 里对前馈力矩做 `feedforward_torque_slew_rate` 限斜率，并可通过 `max_feedforward_torque` 做幅值限制。
+4. Go1 在每次 `read()` 后会重置部分命令默认值；P1 也会重置 `feedforward`、`velocity_desired` 和 `kd`，避免控制器某周期未写入时复用上一周期残留命令。
+
+P1 默认 `feedforward_torque_slew_rate=150.0`，表示每个关节前馈力矩最大变化率为 150 Nm/s；设为 `0` 可关闭限斜率。`max_feedforward_torque=0.0` 表示不做幅值限制。
 
 ## DDS Gait Bridge
 

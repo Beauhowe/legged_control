@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-01
+
+### Added
+- `LeggedController` 启动时打印 `mrtDesiredFrequency` 与对应 `MRT period`，便于核对 `task.info` 与 `controller_manager.update_rate`。
+- 当实测控制周期与 `task.info` 中 `mrtDesiredFrequency` 偏差超过 5% 时，输出一次性 WARN，提示原地步态可能出现横向漂移。
+- 仿真硬件 `LeggedHWSim` 支持 URDF/xacro 参数 `delay_cycles`（默认 9），命令延迟按 **控制周期数** 计算，随 `update_rate` 缩放。
+- `ros2_control.xacro` 与 `p1_sim.launch.py` / `go1_sim.launch.py` 传入 `delay_cycles`；保留旧参数 `delay`（秒）并给出迁移 WARN。
+### Changed
+- `LeggedController` 中 `currentObservation_.time` 在控制器激活后改为基于 **墙钟** `(now - controllerStartTime_)`，减少仿真/调度抖动下时间轴与 MPC 步态相位错位。
+- `LeggedHWSim` 命令缓冲延迟由固定 `0.009 s` 改为 `delay_cycles × period`，降低外环降频后延迟标定失准。
+- `controllers.yaml`、`config/p1/task.info`、`legged_control/p1_task.info` 增加注释：`update_rate` 必须与 `mpc.mrtDesiredFrequency` 一致；`go1/task.info` 同步注释说明。
+- `empty_world.world` 增加说明：`max_step_size × real_time_update_rate` 决定仿真实时因子，须与外环频率策略一致。
+### Fixed
+- 缓解因 **标称 MRT 频率与实际 `controller_manager` 周期不一致** 导致的原地 trot 缓慢横向漂移（需配置侧三处对齐，见下方说明）。
+### Notes / 迁移说明
+- **仿真稳定推荐**：`empty_world.world` 使用 `max_step_size=0.001`、`real_time_update_rate=1000`，且 `controllers.yaml` 的 `update_rate` 与 `task.info` 的 `mrtDesiredFrequency` 均为 **1000**。
+- 若将外环改为 500 Hz，须同时将 world 改为 `max_step_size=0.002`、`real_time_update_rate=500`，**不可** 仅改 yaml/task 而 Gazebo 仍为 1000 Hz 物理步进。
+- 真机下位机频率 与 `mrtDesiredFrequency` 和 `controllers.yaml` 的 `update_rate`一致。
+- 测原地 trot 时，避免与 `legged_target_trajectories_publisher` 同时发布非零 `/cmd_vel`。
+
+## [0.1.1] - 2026-05-28
+
+### Added
+- 在 `empty_world.world` 中添加 Gazebo ROS 插件：
+  ```xml
+  <plugin name="gazebo_ros_init" filename="libgazebo_ros_init.so"/>
+  <plugin name="gazebo_ros_factory" filename="libgazebo_ros_factory.so"/>
+  <plugin name="gazebo_ros_force_system" filename="libgazebo_ros_force_system.so"/>
+  ```
+
 ## [0.1.1] - 2026-05-27
 
 ### Added

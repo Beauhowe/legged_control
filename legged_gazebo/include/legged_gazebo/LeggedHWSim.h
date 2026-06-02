@@ -45,6 +45,7 @@
 #include <gazebo_ros2_control/gazebo_system_interface.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
 
 #include <legged_common/hardware_interface/ContactSensorInterface.h>
 #include <legged_common/hardware_interface/HybridJointInterface.h>
@@ -92,6 +93,7 @@ class LeggedHWSim : public gazebo_ros2_control::GazeboSystemInterface {
   bool setupJoints(const hardware_interface::HardwareInfo& hardwareInfo);
   bool setupImu(const hardware_interface::HardwareInfo& hardwareInfo);
   bool setupContacts(const hardware_interface::HardwareInfo& hardwareInfo);
+  void publishJointCommands();
   void updateGroundTruth(const rclcpp::Time& time);
 
   rclcpp::Logger logger_{rclcpp::get_logger("legged_gazebo")};
@@ -106,10 +108,15 @@ class LeggedHWSim : public gazebo_ros2_control::GazeboSystemInterface {
   std::vector<std::string> contactLinkNames_;
   std::vector<ImuData> imuData_;
   std::vector<std::deque<DelayedHybridJointCommand>> cmdBuffer_;
+  std::vector<double> effortCommand_;
 
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr groundTruthPublisher_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr effortCommandPublisher_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr feedforwardCommandPublisher_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr positionDesiredCommandPublisher_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr velocityDesiredCommandPublisher_;
 
-  double delay_{};
+  size_t delayCycles_{9};
 };
 
 }  // namespace legged

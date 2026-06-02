@@ -13,6 +13,7 @@
 #include <ocs2_legged_robot_ros/visualization/LeggedRobotVisualizer.h>
 #include <ocs2_mpc/MPC_MRT_Interface.h>
 #include <ocs2_msgs/msg/mpc_observation.hpp>
+#include <rclcpp/time.hpp>
 #include <std_msgs/msg/bool.hpp>
 
 #include <legged_estimation/StateEstimateBase.h>
@@ -91,6 +92,10 @@ class LeggedController : public controller_interface::ControllerInterface {
   std::atomic_bool emergencyStopActive_{false};
   bool emergencyStopLogged_{false};
   bool previousEmergencyStopActive_{false};
+  rclcpp::Time controllerStartTime_{0, 0, RCL_ROS_TIME};
+  bool controllerClockStarted_{false};
+  scalar_t mrtPeriod_{0.001};
+  bool mrtPeriodMismatchWarned_{false};
 };
 
 class LeggedCheaterController : public LeggedController {

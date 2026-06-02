@@ -139,7 +139,7 @@ mpc
   debugPrint                      false
 
   mpcDesiredFrequency             100  ; [Hz]
-  mrtDesiredFrequency             1000 ; [Hz] Useless
+  mrtDesiredFrequency             500 ; [Hz] Must match controller_manager update_rate
 }
 
 initialState
@@ -155,24 +155,24 @@ initialState
    ;; Base Pose: [position, orientation] ;;
    (6,0)  0.0     ; p_base_x
    (7,0)  0.0     ; p_base_y
-   (8,0)  0.57     ; p_base_z
+   (8,0)  0.58     ; p_base_z
    (9,0)  0.0     ; theta_base_z
    (10,0) 0.0     ; theta_base_y
    (11,0) 0.0     ; theta_base_x
 
    ;; Leg Joint Positions: [LF, LH, RF, RH] ;;
-   (12,0) -0.0   ; LF_HAA
-   (13,0)  0.62   ; LF_HFE
-   (14,0) -1.44   ; LF_KFE
-   (15,0) -0.0   ; LH_HAA
-   (16,0)  0.62   ; LH_HFE
-   (17,0) -1.44   ; LH_KFE
-   (18,0)  0.0   ; RF_HAA
-   (19,0)  0.62   ; RF_HFE
-   (20,0) -1.44   ; RF_KFE
-   (21,0)  0.0   ; RH_HAA
-   (22,0)  0.62   ; RH_HFE
-   (23,0) -1.44   ; RH_KFE
+   (12,0) -0.035   ; LF_HAA
+   (13,0)  0.635   ; LF_HFE
+   (14,0) -1.188   ; LF_KFE
+   (15,0) -0.035   ; LH_HAA
+   (16,0)  0.635   ; LH_HFE
+   (17,0) -1.188   ; LH_KFE
+   (18,0)  0.035   ; RF_HAA
+   (19,0)  0.635   ; RF_HFE
+   (20,0) -1.188   ; RF_KFE
+   (21,0)  0.035   ; RH_HAA
+   (22,0)  0.635   ; RH_HFE
+   (23,0) -1.188   ; RH_KFE
 }
 
 ; standard state weight matrix
@@ -296,8 +296,8 @@ frictionConeTask
 
 swingLegTask
 {
-    kp                   350
-    kd                   37
+    kp                   270
+    kd                   17
 }
 
 weight

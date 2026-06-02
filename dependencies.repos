@@ -23,3 +23,8 @@ repositories:
     type: git
     url: git@github.com:leggedrobotics/ocs2_robotic_assets.git
     version: ros2
+
+  p1_dds_joy_tools_assets:
+    type: git
+    url: https://github.com/AetherControl/p1_dds_joy_tools.git
+    version: main

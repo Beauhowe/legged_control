@@ -1,0 +1,14 @@
+legged_cheater_controller:
+  ros__parameters:
+    emergencyStopTopic: /p1_emergency_stop
+    imuName: base_imu
+    referenceFile: /workspace/install/legged_controllers/share/legged_controllers/config/p1/reference_lie_down.info
+    taskFile: /workspace/src/legged_control/legged_control/p1_task.info
+    urdfFile: /workspace/src/legged_control/legged_control/p1_p1_hw.urdf
+legged_controller:
+  ros__parameters:
+    emergencyStopTopic: /p1_emergency_stop
+    imuName: base_imu
+    referenceFile: /workspace/install/legged_controllers/share/legged_controllers/config/p1/reference_lie_down.info
+    taskFile: /workspace/src/legged_control/legged_control/p1_task.info
+    urdfFile: /workspace/src/legged_control/legged_control/p1_p1_hw.urdf

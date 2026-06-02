@@ -147,8 +147,32 @@ void P1HW::loadContactEstimationParameters(const hardware_interface::HardwareInf
   contactForceThreshold_ = readDoubleParameter(hardwareInfo, "contact_force_threshold", static_cast<double>(contactThreshold_));
 }
 
+void P1HW::loadCommandProtectionParameters(const hardware_interface::HardwareInfo& hardwareInfo) {
+  feedforwardTorqueSlewRate_ = readDoubleParameter(hardwareInfo, "feedforward_torque_slew_rate", feedforwardTorqueSlewRate_);
+  maxFeedforwardTorque_ = readDoubleParameter(hardwareInfo, "max_feedforward_torque", maxFeedforwardTorque_);
+}
+
 double P1HW::estimateJointTorque(size_t jointIndex, double current) const {
   return current * currentToTorqueScale_[jointIndex] + currentToTorqueOffset_[jointIndex];
+}
+
+double P1HW::limitFeedforwardTorque(size_t jointIndex, double desiredTorque, double periodSeconds) {
+  if (!std::isfinite(desiredTorque)) {
+    desiredTorque = 0.0;
+  }
+  if (maxFeedforwardTorque_ > 0.0) {
+    desiredTorque = std::clamp(desiredTorque, -maxFeedforwardTorque_, maxFeedforwardTorque_);
+  }
+  if (feedforwardTorqueSlewRate_ <= 0.0 || periodSeconds <= 0.0) {
+    lastFeedforwardTorque_[jointIndex] = desiredTorque;
+    return desiredTorque;
+  }
+
+  const double previousTorque = hasLastFeedforwardTorque_ ? lastFeedforwardTorque_[jointIndex] : 0.0;
+  const double maxStep = feedforwardTorqueSlewRate_ * periodSeconds;
+  const double limitedTorque = previousTorque + std::clamp(desiredTorque - previousTorque, -maxStep, maxStep);
+  lastFeedforwardTorque_[jointIndex] = limitedTorque;
+  return limitedTorque;
 }
 
 void P1HW::setupEmergencyStop(const hardware_interface::HardwareInfo& hardwareInfo) {
@@ -193,6 +217,7 @@ hardware_interface::CallbackReturn P1HW::on_init(const hardware_interface::Hardw
   }
   loadTorqueEstimationParameters(hardwareInfo);
   loadContactEstimationParameters(hardwareInfo);
+  loadCommandProtectionParameters(hardwareInfo);
   setupEmergencyStop(hardwareInfo);
   dds_ = std::make_unique<P1DdsInterface>();
   if (!dds_->init(domain, stateTopic, imuTopic, commandTopic)) {
@@ -232,7 +257,8 @@ hardware_interface::return_type P1HW::read(const rclcpp::Time&, const rclcpp::Du
       const size_t ddsIndex = jointToDdsIndex_[i];
       jointStates_[i].position = state.position[ddsIndex];
       jointStates_[i].velocity = state.speed[ddsIndex];
-      jointStates_[i].effort = estimateJointTorque(i, state.current[ddsIndex]);
+      // jointStates_[i].effort = estimateJointTorque(i, state.current[ddsIndex]);
+      jointStates_[i].effort = state.current[ddsIndex]; // current 实际是力矩
     }
 
     for (size_t i = 0; i < contactStates_.size() && i < kLegCount; ++i) {
@@ -273,11 +299,17 @@ hardware_interface::return_type P1HW::read(const rclcpp::Time&, const rclcpp::Du
     imuLinearAcceleration_[2] = imu.linear_acceleration_z;
   }
 
+  for (auto& command : jointCommands_) {
+    command.feedforward = 0.0;
+    command.velocity_desired = 0.0;
+    command.kd = 3.0;
+  }
+
   return hardware_interface::return_type::OK;
 }
 
 // controller_manager 周期调用：把控制器输出打包成 Motor_Command_12::motor_cmd 发给下位机。
-hardware_interface::return_type P1HW::write(const rclcpp::Time& time, const rclcpp::Duration&) {
+hardware_interface::return_type P1HW::write(const rclcpp::Time& time, const rclcpp::Duration& period) {
   if (dds_ == nullptr) {
     return hardware_interface::return_type::ERROR;
   }
@@ -296,11 +328,37 @@ hardware_interface::return_type P1HW::write(const rclcpp::Time& time, const rclc
       command.velocity_desired[ddsIndex] = static_cast<float>(jointCommands_[i].velocity_desired);
       command.kp[ddsIndex] = static_cast<float>(jointCommands_[i].kp);
       command.kd[ddsIndex] = static_cast<float>(jointCommands_[i].kd);
-      command.torque[ddsIndex] = static_cast<float>(jointCommands_[i].feedforward);
+      // const double feedforwardTorque = limitFeedforwardTorque(i, jointCommands_[i].feedforward, period.seconds());
+      // command.torque[ddsIndex] = static_cast<float>(feedforwardTorque);
+      // command.feedforward_torque[ddsIndex] = static_cast<float>(feedforwardTorque);
       command.feedforward_torque[ddsIndex] = static_cast<float>(jointCommands_[i].feedforward);
+      if (jointNames_[i] == "LF_HAA") {
+        RCLCPP_INFO_THROTTLE(rclcpp::get_logger("legged_p1_hw"), *emergencyStopNode_->get_clock(), 1000,
+                             "Joint %s (DDS index %zu): pos_des=%.3f vel_des=%.3f kp=%.3f kd=%.3f ff=%.3f",
+                             jointNames_[i].c_str(), ddsIndex, command.position_desired[ddsIndex],
+                             command.velocity_desired[ddsIndex], command.kp[ddsIndex], command.kd[ddsIndex],
+                             command.feedforward_torque[ddsIndex]);
+      }
+      if (jointNames_[i] == "LF_HFE") {
+        RCLCPP_INFO_THROTTLE(rclcpp::get_logger("legged_p1_hw"), *emergencyStopNode_->get_clock(), 1000,
+                             "Joint %s (DDS index %zu): pos_des=%.3f vel_des=%.3f kp=%.3f kd=%.3f ff=%.3f",
+                             jointNames_[i].c_str(), ddsIndex, command.position_desired[ddsIndex],
+                             command.velocity_desired[ddsIndex], command.kp[ddsIndex], command.kd[ddsIndex],
+                             command.feedforward_torque[ddsIndex]);
+      }
+      if (jointNames_[i] == "LF_KFE") {
+        RCLCPP_INFO_THROTTLE(rclcpp::get_logger("legged_p1_hw"), *emergencyStopNode_->get_clock(), 1000,
+                             "Joint %s (DDS index %zu): pos_des=%.3f vel_des=%.3f kp=%.3f kd=%.3f ff=%.3f",
+                             jointNames_[i].c_str(), ddsIndex, command.position_desired[ddsIndex],
+                             command.velocity_desired[ddsIndex], command.kp[ddsIndex], command.kd[ddsIndex],
+                             command.feedforward_torque[ddsIndex]);
+      }
+    } else {
+      lastFeedforwardTorque_[i] = 0.0;
     }
     command.mode[ddsIndex] = commandMode_;
   }
+  hasLastFeedforwardTorque_ = true;
 
   return dds_->writeCommand(command) ? hardware_interface::return_type::OK : hardware_interface::return_type::ERROR;
 }

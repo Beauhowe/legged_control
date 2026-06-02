@@ -38,8 +38,10 @@ class P1HW : public LeggedHW {
   bool loadJointMappingParameters(const hardware_interface::HardwareInfo& hardwareInfo);
   void loadTorqueEstimationParameters(const hardware_interface::HardwareInfo& hardwareInfo);
   void loadContactEstimationParameters(const hardware_interface::HardwareInfo& hardwareInfo);
+  void loadCommandProtectionParameters(const hardware_interface::HardwareInfo& hardwareInfo);
   int findJointIndex(const std::string& jointName) const;
   double estimateJointTorque(size_t jointIndex, double current) const;
+  double limitFeedforwardTorque(size_t jointIndex, double desiredTorque, double periodSeconds);
   void setupEmergencyStop(const hardware_interface::HardwareInfo& hardwareInfo);
 
   // ros2_control 的 base_imu state interface 后端存储。
@@ -57,6 +59,10 @@ class P1HW : public LeggedHW {
   // 默认 scale=1, offset=0，行为等价于直接把 current 放进 effort。
   std::array<double, 12> currentToTorqueScale_{};
   std::array<double, 12> currentToTorqueOffset_{};
+  double feedforwardTorqueSlewRate_{150.0};
+  double maxFeedforwardTorque_{0.0};
+  std::array<double, 12> lastFeedforwardTorque_{};
+  bool hasLastFeedforwardTorque_{false};
   P1ContactEstimator contactEstimator_;
   std::atomic<bool> emergencyStopActive_{false};
   bool emergencyStopLogged_{false};

@@ -2,6 +2,7 @@ import os
 import sys
 
 import xacro
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
@@ -28,6 +29,8 @@ def launch_setup(context, *args, **kwargs):
     contact_force_threshold = LaunchConfiguration("contact_force_threshold").perform(context)
     current_to_torque_scale = LaunchConfiguration("current_to_torque_scale").perform(context)
     current_to_torque_offset = LaunchConfiguration("current_to_torque_offset").perform(context)
+    feedforward_torque_slew_rate = LaunchConfiguration("feedforward_torque_slew_rate").perform(context)
+    max_feedforward_torque = LaunchConfiguration("max_feedforward_torque").perform(context)
     start_gait_bridge = LaunchConfiguration("start_gait_bridge")
     start_target_publisher = LaunchConfiguration("start_target_publisher")
     dds_gait_topic = LaunchConfiguration("dds_gait_topic").perform(context)
@@ -61,6 +64,7 @@ def launch_setup(context, *args, **kwargs):
     controllers_yaml = os.path.join(controllers_share, "config", "controllers.yaml")
     generated_dir = get_generated_dir()
     generated_urdf = os.path.join(generated_dir, f"{robot_type}_p1_hw.urdf")
+    controller_params_file = os.path.join(generated_dir, f"{robot_type}_p1_hw_controllers.yaml")
 
     robot_xacro = os.path.join(description_share, "urdf", "p1", "robot.xacro")
     robot_doc = xacro.process_file(
@@ -80,6 +84,8 @@ def launch_setup(context, *args, **kwargs):
             "contact_force_threshold": contact_force_threshold,
             "current_to_torque_scale": current_to_torque_scale,
             "current_to_torque_offset": current_to_torque_offset,
+            "feedforward_torque_slew_rate": feedforward_torque_slew_rate,
+            "max_feedforward_torque": max_feedforward_torque,
         },
     )
     robot_description_xml = robot_doc.toprettyxml(indent="  ")
@@ -87,26 +93,30 @@ def launch_setup(context, *args, **kwargs):
         urdf_file.write(robot_description_xml)
 
     robot_description = {"robot_description": robot_description_xml}
-    controller_params = {
-        "legged_controller": {
-            "ros__parameters": {
-                "urdfFile": generated_urdf,
-                "taskFile": task_file,
-                "referenceFile": reference_file,
-                "imuName": "base_imu",
-                "emergencyStopTopic": emergency_stop_topic,
-            }
-        },
-        "legged_cheater_controller": {
-            "ros__parameters": {
-                "urdfFile": generated_urdf,
-                "taskFile": task_file,
-                "referenceFile": reference_file,
-                "imuName": "base_imu",
-                "emergencyStopTopic": emergency_stop_topic,
-            }
-        },
-    }
+    with open(controller_params_file, "w", encoding="utf-8") as params:
+        yaml.safe_dump(
+            {
+                "legged_controller": {
+                    "ros__parameters": {
+                        "urdfFile": generated_urdf,
+                        "taskFile": task_file,
+                        "referenceFile": reference_file,
+                        "imuName": "base_imu",
+                        "emergencyStopTopic": emergency_stop_topic,
+                    }
+                },
+                "legged_cheater_controller": {
+                    "ros__parameters": {
+                        "urdfFile": generated_urdf,
+                        "taskFile": task_file,
+                        "referenceFile": reference_file,
+                        "imuName": "base_imu",
+                        "emergencyStopTopic": emergency_stop_topic,
+                    }
+                },
+            },
+            params,
+        )
 
     robot_state_publisher = Node(
         package="robot_state_publisher",
@@ -119,20 +129,20 @@ def launch_setup(context, *args, **kwargs):
         package="controller_manager",
         executable="ros2_control_node",
         output="screen",
-        parameters=[robot_description, controllers_yaml, controller_params],
+        parameters=[robot_description, controllers_yaml, controller_params_file],
     )
 
     joint_state_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+        arguments=["joint_state_broadcaster", "--controller-manager-timeout","120","--service-call-timeout","120", "--controller-manager", "/controller_manager"],
         output="screen",
     )
 
     legged_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["legged_controller", "--controller-manager", "/controller_manager"],
+        arguments=["legged_controller", "--controller-manager-timeout","120","--service-call-timeout","120", "--controller-manager", "/controller_manager"],
         output="screen",
     )
 
@@ -180,7 +190,7 @@ def launch_setup(context, *args, **kwargs):
         ros2_control_node,
         joint_state_spawner,
         legged_controller_spawner,
-        target_publisher,
+        # target_publisher,
         gait_bridge,
     ]
 
@@ -202,10 +212,12 @@ def generate_launch_description():
             DeclareLaunchArgument("dds_command_topic", default_value="p1_motor_cmd"),
             DeclareLaunchArgument("emergency_stop_topic", default_value="/p1_emergency_stop"),
             DeclareLaunchArgument("dds_joint_order", default_value="LF_HAA,LF_HFE,LF_KFE,LH_HAA,LH_HFE,LH_KFE,RF_HAA,RF_HFE,RF_KFE,RH_HAA,RH_HFE,RH_KFE"),
-            DeclareLaunchArgument("contact_estimation_method", default_value="current"),
+            DeclareLaunchArgument("contact_estimation_method", default_value="jacobian"),
             DeclareLaunchArgument("contact_force_threshold", default_value="40.0"),
-            DeclareLaunchArgument("current_to_torque_scale", default_value="2.863"),
+            DeclareLaunchArgument("current_to_torque_scale", default_value="1"),
             DeclareLaunchArgument("current_to_torque_offset", default_value="0.0"),
+            DeclareLaunchArgument("feedforward_torque_slew_rate", default_value="150.0"),
+            DeclareLaunchArgument("max_feedforward_torque", default_value="0.0"),
             DeclareLaunchArgument("start_gait_bridge", default_value="true"),
             DeclareLaunchArgument(
                 "start_target_publisher",

@@ -38,6 +38,7 @@
 #include "legged_gazebo/LeggedHWSim.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <angles/angles.h>
 #include <gazebo/common/Time.hh>
@@ -63,7 +64,19 @@ hardware_interface::CallbackReturn LeggedHWSim::on_init(const hardware_interface
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  delay_ = getHardwareParameter(hardwareInfo, "delay", 0.009);
+  delayCycles_ = 9;
+  const auto delayCyclesIt = hardwareInfo.hardware_parameters.find("delay_cycles");
+  if (delayCyclesIt != hardwareInfo.hardware_parameters.end()) {
+    delayCycles_ = static_cast<size_t>(std::max(1.0, std::stod(delayCyclesIt->second)));
+  } else {
+    // Legacy: "delay" in seconds at 1 kHz (0.009 s -> 9 cycles).
+    const double delaySec = getHardwareParameter(hardwareInfo, "delay", 0.009);
+    delayCycles_ = static_cast<size_t>(std::max(1.0, std::round(delaySec / 0.001)));
+    RCLCPP_WARN(logger_,
+                "Hardware param 'delay' (seconds) is legacy; use 'delay_cycles'. Using %zu control periods (~%.3f s at 1 kHz).",
+                delayCycles_, static_cast<double>(delayCycles_) * 0.001);
+  }
+  RCLCPP_INFO(logger_, "Command delay: %zu controller periods (scales with update_rate).", delayCycles_);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -75,6 +88,12 @@ bool LeggedHWSim::initSim(rclcpp::Node::SharedPtr& model_nh, gazebo::physics::Mo
   contactManager_->SetNeverDropContacts(true);
   baseLink_ = parentModel_->GetLink("base");
   groundTruthPublisher_ = nh_->create_publisher<nav_msgs::msg::Odometry>("/ground_truth/state", 10);
+  effortCommandPublisher_ = nh_->create_publisher<std_msgs::msg::Float64MultiArray>("/legged_hw_sim/effort", 10);
+  feedforwardCommandPublisher_ = nh_->create_publisher<std_msgs::msg::Float64MultiArray>("/legged_hw_sim/command/feedforward", 10);
+  positionDesiredCommandPublisher_ =
+      nh_->create_publisher<std_msgs::msg::Float64MultiArray>("/legged_hw_sim/command/position_desired", 10);
+  velocityDesiredCommandPublisher_ =
+      nh_->create_publisher<std_msgs::msg::Float64MultiArray>("/legged_hw_sim/command/velocity_desired", 10);
 
   return setupJoints(hardware_info) && setupImu(hardware_info) && setupContacts(hardware_info);
 }
@@ -192,7 +211,8 @@ hardware_interface::return_type LeggedHWSim::write(const rclcpp::Time& time, con
       buffer.clear();
     }
 
-    while (!buffer.empty() && (time - buffer.back().stamp_).seconds() > delay_) {
+    const double delaySec = delayCycles_ * period.seconds();
+    while (!buffer.empty() && (time - buffer.back().stamp_).seconds() > delaySec) {
       buffer.pop_back();
     }
     buffer.push_front(DelayedHybridJointCommand{time, joint.command_});
@@ -200,9 +220,13 @@ hardware_interface::return_type LeggedHWSim::write(const rclcpp::Time& time, con
     const auto& command = buffer.back().command_;
     const double effort = command.kp * (command.position_desired - joint.state_.position) +
                           command.kd * (command.velocity_desired - joint.state_.velocity) + command.feedforward;
+
+    // const double effort = command.feedforward;
     joint.joint_->SetForce(0, effort);
+    effortCommand_[i] = effort;
   }
 
+  publishJointCommands();
   return hardware_interface::return_type::OK;
 }
 
@@ -211,6 +235,7 @@ bool LeggedHWSim::setupJoints(const hardware_interface::HardwareInfo& hardwareIn
   jointData_.reserve(hardwareInfo.joints.size());
   cmdBuffer_.clear();
   cmdBuffer_.resize(hardwareInfo.joints.size());
+  effortCommand_.assign(hardwareInfo.joints.size(), 0.0);
 
   for (const auto& jointInfo : hardwareInfo.joints) {
     auto joint = parentModel_->GetJoint(jointInfo.name);
@@ -264,6 +289,34 @@ bool LeggedHWSim::setupContacts(const hardware_interface::HardwareInfo& hardware
   }
   contactStates_.assign(contactNames_.size(), 0.0);
   return true;
+}
+
+void LeggedHWSim::publishJointCommands() {
+  if (!effortCommandPublisher_ || !feedforwardCommandPublisher_ || !positionDesiredCommandPublisher_ ||
+      !velocityDesiredCommandPublisher_) {
+    return;
+  }
+
+  std_msgs::msg::Float64MultiArray effortMsg;
+  std_msgs::msg::Float64MultiArray feedforwardMsg;
+  std_msgs::msg::Float64MultiArray positionDesiredMsg;
+  std_msgs::msg::Float64MultiArray velocityDesiredMsg;
+
+  effortMsg.data = effortCommand_;
+  feedforwardMsg.data.reserve(jointData_.size());
+  positionDesiredMsg.data.reserve(jointData_.size());
+  velocityDesiredMsg.data.reserve(jointData_.size());
+
+  for (const auto& joint : jointData_) {
+    feedforwardMsg.data.push_back(joint.command_.feedforward);
+    positionDesiredMsg.data.push_back(joint.command_.position_desired);
+    velocityDesiredMsg.data.push_back(joint.command_.velocity_desired);
+  }
+
+  effortCommandPublisher_->publish(effortMsg);
+  feedforwardCommandPublisher_->publish(feedforwardMsg);
+  positionDesiredCommandPublisher_->publish(positionDesiredMsg);
+  velocityDesiredCommandPublisher_->publish(velocityDesiredMsg);
 }
 
 void LeggedHWSim::updateGroundTruth(const rclcpp::Time& time) {
