@@ -190,7 +190,7 @@ def launch_setup(context, *args, **kwargs):
         ros2_control_node,
         joint_state_spawner,
         legged_controller_spawner,
-        # target_publisher,
+        target_publisher,
         gait_bridge,
     ]
 

@@ -1,0 +1,42 @@
+{
+  "name": "legged_control",
+  "build": {
+    "context": "../../..",
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder}/../..,target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace/src/legged_control",
+  "remoteUser": "ros",
+  "containerUser": "ros",
+  "runArgs": [
+    "--name=legged_control_dev",
+    "--network=host",
+    "--ipc=host",
+    "--privileged",
+    "--runtime=nvidia",
+    "--gpus=all",
+    "-e",
+    "DISPLAY=${localEnv:DISPLAY}",
+    "-e",
+    "QT_X11_NO_MITSHM=1",
+    "-e",
+    "NVIDIA_VISIBLE_DEVICES=all",
+    "-e",
+    "NVIDIA_DRIVER_CAPABILITIES=all",
+    "-v",
+    "/tmp/.X11-unix:/tmp/.X11-unix:rw",
+    "-v",
+    "${localEnv:HOME}/.Xauthority:/home/ros/.Xauthority:rw",
+    "-v",
+    "/dev:/dev"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "ms-iot.vscode-ros"
+      ]
+    }
+  }
+}
