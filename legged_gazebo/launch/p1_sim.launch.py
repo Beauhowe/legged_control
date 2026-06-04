@@ -103,7 +103,7 @@ def launch_setup(context, *args, **kwargs):
     spawn_entity = Node(
         package="gazebo_ros",
         executable="spawn_entity.py",
-        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.6", "-timeout", "180"],
+        arguments=["-topic", "robot_description", "-entity", robot_type, "-z", "0.3", "-timeout", "180"],
         output="screen",
     )
 
@@ -146,7 +146,13 @@ def launch_setup(context, *args, **kwargs):
 
     disable_model_database = SetEnvironmentVariable("GAZEBO_MODEL_DATABASE_URI", "")
 
-    return [disable_model_database, gzserver, gzclient, robot_state_publisher, spawn_entity, spawn_controllers]
+    gazebo_model_path = os.getenv("GAZEBO_MODEL_PATH", "")
+    default_gazebo_models = "/usr/share/gazebo-11/models"
+    if default_gazebo_models not in gazebo_model_path.split(os.pathsep):
+        gazebo_model_path = os.pathsep.join([p for p in [gazebo_model_path, default_gazebo_models] if p])
+    set_gazebo_model_path = SetEnvironmentVariable("GAZEBO_MODEL_PATH", gazebo_model_path)
+
+    return [disable_model_database, set_gazebo_model_path, gzserver, gzclient, robot_state_publisher, spawn_entity, spawn_controllers]
 
 
 def generate_launch_description():
