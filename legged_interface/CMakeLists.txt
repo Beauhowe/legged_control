@@ -16,9 +16,13 @@ find_package(ocs2_pinocchio_interface REQUIRED)
 find_package(ocs2_centroidal_model REQUIRED)
 find_package(ocs2_legged_robot REQUIRED)
 find_package(ocs2_self_collision REQUIRED)
+find_package(ocs2_sphere_approximation REQUIRED)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(pinocchio REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common)
 find_package(Boost REQUIRED COMPONENTS system filesystem log_setup log)
+find_package(grid_map_sdf REQUIRED)
+find_package(convex_plane_decomposition REQUIRED)
 
 add_library(${PROJECT_NAME}
   src/constraint/EndEffectorLinearConstraint.cpp
@@ -31,18 +35,27 @@ add_library(${PROJECT_NAME}
   src/SwitchedModelReferenceManager.cpp
   src/LeggedRobotPreComputation.cpp
   src/LeggedInterface.cpp
+  src/perceptive/ConvexRegionSelector.cpp
+  src/perceptive/PerceptiveLeggedReferenceManager.cpp
+  src/perceptive/PerceptiveLeggedPrecomputation.cpp
+  src/perceptive/constraint/FootPlacementConstraint.cpp
+  src/perceptive/constraint/FootCollisionConstraint.cpp
+  src/perceptive/constraint/SphereSdfConstraint.cpp
+  src/perceptive/PerceptiveLeggedInterface.cpp
 )
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
+    ${PCL_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
 )
 target_link_libraries(${PROJECT_NAME}
   pinocchio::pinocchio
   Boost::filesystem
   Boost::system
+  ${PCL_LIBRARIES}
 )
 ament_target_dependencies(${PROJECT_NAME}
   ocs2_core
@@ -56,6 +69,9 @@ ament_target_dependencies(${PROJECT_NAME}
   ocs2_centroidal_model
   ocs2_legged_robot
   ocs2_self_collision
+  ocs2_sphere_approximation
+  convex_plane_decomposition
+  grid_map_sdf
 )
 target_compile_options(${PROJECT_NAME} PUBLIC ${OCS2_PINOCCHIO_FLAGS})
 
@@ -92,9 +108,13 @@ ament_export_dependencies(
   ocs2_centroidal_model
   ocs2_legged_robot
   ocs2_self_collision
+  ocs2_sphere_approximation
+  convex_plane_decomposition
+  grid_map_sdf
   pinocchio
   Eigen3
   Boost
+  PCL
 )
 
 ament_package()

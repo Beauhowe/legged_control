@@ -75,9 +75,7 @@ export FASTDDS_INSTALL_PREFIX=/path/to/fast_dds/local
 source /opt/ros/humble/setup.bash
 cd ~/p1_ws
 
-colcon build --base-paths src \
-  --packages-up-to legged_gazebo legged_unitree_hw legged_controllers \
-  --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_STANDARD=17
+colcon build --packages-up-to   legged_controllers   legged_gazebo   legged_p1_hw   p1_dds_joy_tools legged_description   --cmake-args   -DFASTDDS_INSTALL_PREFIX=/workspace/src/env/fast_dds/local   -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 source install/setup.bash
 ```

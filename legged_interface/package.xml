@@ -11,6 +11,7 @@
     <buildtool_depend>ament_cmake</buildtool_depend>
 
     <build_depend>cmake_clang_tools</build_depend>
+    <build_depend>libpcl-dev</build_depend>
     <depend>boost</depend>
     <depend>eigen3_cmake_module</depend>
     <depend>ocs2_core</depend>
@@ -24,7 +25,10 @@
     <depend>ocs2_centroidal_model</depend>
     <depend>ocs2_legged_robot</depend>
     <depend>ocs2_self_collision</depend>
+    <depend>ocs2_sphere_approximation</depend>
     <depend>pinocchio</depend>
+    <depend>grid_map_sdf</depend>
+    <depend>convex_plane_decomposition</depend>
 
     <export>
         <build_type>ament_cmake</build_type>

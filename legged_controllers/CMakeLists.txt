@@ -22,19 +22,36 @@ find_package(ocs2_self_collision_visualization REQUIRED)
 find_package(ocs2_sqp REQUIRED)
 find_package(legged_common REQUIRED)
 find_package(legged_interface REQUIRED)
+find_package(convex_plane_decomposition_ros REQUIRED)
+find_package(convex_plane_decomposition_msgs REQUIRED)
+find_package(grid_map_sdf REQUIRED)
 find_package(legged_wbc REQUIRED)
 find_package(legged_estimation REQUIRED)
 find_package(pinocchio REQUIRED)
+find_package(hpp-fcl REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common)
 find_package(Boost REQUIRED COMPONENTS filesystem system log log_setup)
 
 add_library(${PROJECT_NAME} SHARED
         src/LeggedController.cpp
+        src/perceptive/PerceptiveController.cpp
+        src/perceptive/PlanarTerrainReceiver.cpp
         )
 
 target_include_directories(${PROJECT_NAME}
         PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+    ${PCL_INCLUDE_DIRS}
+        )
+
+target_link_directories(${PROJECT_NAME} PUBLIC
+        /workspace/install/hpp-fcl/lib
+        )
+
+target_link_libraries(${PROJECT_NAME}
+        ${PCL_LIBRARIES}
+        hpp-fcl::hpp-fcl
         )
 
 ament_target_dependencies(${PROJECT_NAME}
@@ -52,9 +69,13 @@ ament_target_dependencies(${PROJECT_NAME}
         ocs2_sqp
         legged_common
         legged_interface
+        grid_map_sdf
+        convex_plane_decomposition_msgs
+        convex_plane_decomposition_ros
         legged_wbc
         legged_estimation
         pinocchio
+        PCL
         )
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${OCS2_CXX_FLAGS})
@@ -151,9 +172,13 @@ ament_export_dependencies(
         ocs2_sqp
         legged_common
         legged_interface
+        grid_map_sdf
+        convex_plane_decomposition_msgs
+        convex_plane_decomposition_ros
         legged_wbc
         legged_estimation
         pinocchio
+        PCL
         )
 ament_export_targets(export_${PROJECT_NAME})
 

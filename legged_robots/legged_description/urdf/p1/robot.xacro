@@ -12,6 +12,8 @@
 
     <xacro:include filename="$(find legged_description)/urdf/p1/const.xacro"/>
 
+    <xacro:include filename="$(find legged_description)/urdf/common/lidar.xacro"/>
+
     <xacro:arg name="hardware_plugin" default="legged_gazebo/LeggedHWSim"/>
     <xacro:arg name="robot_type" default="p1"/>
     <xacro:arg name="power_limit" default="4"/>
@@ -58,6 +60,17 @@
     </link>
 
     <xacro:IMU connected_to="base" imu_name="base_imu" xyz="0. 0. 0." rpy="0. 0. 0."/>
+
+    <xacro:lidar parent_link="base"
+                 name_prefix="lidar"
+                 link_name="lidar_link"
+                 x="0.48"
+                 y="0.0"
+                 z="0.08"
+                 roll="0.0"
+                 pitch="0.0"
+                 yaw="0.0"
+                 topic="/cloud_lidar2_filtered"/>
 
     <xacro:leg_p1 prefix="LF" mesh_path="${mesh_path}" mirror="1" mirror_dae="True" front_hind="1" front_hind_dae="True">
         <origin rpy="0 0 0" xyz="${leg_offset_x} ${leg_offset_y} 0"/>

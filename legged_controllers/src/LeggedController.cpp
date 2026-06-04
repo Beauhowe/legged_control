@@ -34,6 +34,7 @@ controller_interface::CallbackReturn LeggedController::on_init() {
   auto_declare<std::string>("referenceFile", "");
   auto_declare<std::string>("imuName", "base_imu");
   auto_declare<std::string>("emergencyStopTopic", "");
+  auto_declare<bool>("publishRobotState", true);
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -84,7 +85,13 @@ controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  rosNode_ = std::make_shared<rclcpp::Node>(node->get_name() + std::string("_ros"));
+  const auto publishRobotState = node->get_parameter("publishRobotState").as_bool();
+  bool useSimTime = false;
+  node->get_parameter("use_sim_time", useSimTime);
+  rclcpp::NodeOptions rosNodeOptions;
+  rosNodeOptions.parameter_overrides({rclcpp::Parameter("use_sim_time", useSimTime),
+                                      rclcpp::Parameter("publish_robot_state", publishRobotState)});
+  rosNode_ = std::make_shared<rclcpp::Node>(node->get_name() + std::string("_ros"), rosNodeOptions);
   auto emergencyStopTopic = node->get_parameter("emergencyStopTopic").as_string();
   if (!emergencyStopTopic.empty()) {
     if (emergencyStopTopic.front() != '/') {

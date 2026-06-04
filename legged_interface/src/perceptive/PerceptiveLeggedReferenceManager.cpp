@@ -1,0 +1,159 @@
+//
+// Reference manager using planar terrain for perceptive MPC.
+//
+
+#include "legged_interface/perceptive/PerceptiveLeggedReferenceManager.h"
+
+#include <ocs2_centroidal_model/AccessHelperFunctions.h>
+#include <ocs2_core/misc/Lookup.h>
+
+namespace legged {
+
+namespace {
+grid_map::Position toGridMapPosition(const vector_t& position) {
+  return {position(0), position(1)};
+}
+}  // namespace
+
+PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(
+    CentroidalModelInfo info, std::shared_ptr<GaitSchedule> gaitSchedulePtr, std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr,
+    std::shared_ptr<ConvexRegionSelector> convexRegionSelectorPtr, const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
+    scalar_t comHeight)
+    : SwitchedModelReferenceManager(std::move(gaitSchedulePtr), std::move(swingTrajectoryPtr)),
+      info_(std::move(info)),
+      convexRegionSelectorPtr_(std::move(convexRegionSelectorPtr)),
+      endEffectorKinematicsPtr_(endEffectorKinematics.clone()),
+      comHeight_(comHeight) {}
+
+void PerceptiveLeggedReferenceManager::modifyReferences(scalar_t initTime, scalar_t finalTime, const vector_t& initState,
+                                                        TargetTrajectories& targetTrajectories, ModeSchedule& modeSchedule) {
+  const auto timeHorizon = finalTime - initTime;
+  modeSchedule = getGaitSchedule()->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
+
+  const auto& map = convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
+  if (!map.exists("smooth_planar")) {
+    SwitchedModelReferenceManager::modifyReferences(initTime, finalTime, initState, targetTrajectories, modeSchedule);
+    return;
+  }
+
+  TargetTrajectories newTargetTrajectories;
+  constexpr int nodeNum = 11;
+  for (int i = 0; i < nodeNum; ++i) {
+    const scalar_t time = initTime + static_cast<scalar_t>(i) * timeHorizon / static_cast<scalar_t>(nodeNum - 1);
+    vector_t state = targetTrajectories.getDesiredState(time);
+    vector_t input = targetTrajectories.getDesiredInput(time);
+
+    const vector_t basePosition = centroidal_model::getBasePose(state, info_).head(3);
+    const grid_map::Position pos = toGridMapPosition(basePosition);
+    if (map.isInside(pos)) {
+      constexpr scalar_t step = 0.3;
+      grid_map::Vector3 normalVector;
+      normalVector(0) = (map.atPosition("smooth_planar", pos + grid_map::Position(-step, 0.0)) -
+                         map.atPosition("smooth_planar", pos + grid_map::Position(step, 0.0))) /
+                        (2.0 * step);
+      normalVector(1) = (map.atPosition("smooth_planar", pos + grid_map::Position(0.0, -step)) -
+                         map.atPosition("smooth_planar", pos + grid_map::Position(0.0, step))) /
+                        (2.0 * step);
+      normalVector(2) = 1.0;
+      normalVector.normalize();
+
+      matrix3_t R;
+      const scalar_t z = centroidal_model::getBasePose(state, info_)(3);
+      R << cos(z), -sin(z), 0,
+           sin(z),  cos(z), 0,
+           0,       0,      1;
+      const vector_t localNormal = R.transpose() * normalVector;
+      auto basePose = centroidal_model::getBasePose(state, info_);
+      const scalar_t targetComHeight = basePose(2);
+      basePose(4) = atan(localNormal.x() / localNormal.z());
+      basePose(2) = map.atPosition("smooth_planar", pos) + targetComHeight / cos(basePose(4));
+    }
+
+    newTargetTrajectories.timeTrajectory.push_back(time);
+    newTargetTrajectories.stateTrajectory.push_back(state);
+    newTargetTrajectories.inputTrajectory.push_back(input);
+  }
+  targetTrajectories = newTargetTrajectories;
+
+  convexRegionSelectorPtr_->update(modeSchedule, initTime, initState, targetTrajectories);
+  updateSwingTrajectoryPlanner(initTime, initState, modeSchedule);
+}
+
+void PerceptiveLeggedReferenceManager::updateSwingTrajectoryPlanner(scalar_t initTime, const vector_t& initState,
+                                                                    ModeSchedule& modeSchedule) {
+  const auto contactFlagStocks = convexRegionSelectorPtr_->extractContactFlags(modeSchedule.modeSequence);
+  feet_array_t<scalar_array_t> liftOffHeightSequence, touchDownHeightSequence;
+
+  for (size_t leg = 0; leg < info_.numThreeDofContacts; leg++) {
+    const size_t initIndex = lookup::findIndexInTimeArray(modeSchedule.eventTimes, initTime);
+    auto projections = convexRegionSelectorPtr_->getProjections(leg);
+    modifyProjections(initTime, initState, leg, initIndex, contactFlagStocks[leg], projections);
+    std::tie(liftOffHeightSequence[leg], touchDownHeightSequence[leg]) = getHeights(contactFlagStocks[leg], projections);
+  }
+  swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+}
+
+void PerceptiveLeggedReferenceManager::modifyProjections(
+    scalar_t initTime, const vector_t& initState, size_t leg, size_t initIndex, const std::vector<bool>& contactFlagStocks,
+    std::vector<convex_plane_decomposition::PlanarTerrainProjection>& projections) {
+  if (projections.empty()) {
+    return;
+  }
+  if (contactFlagStocks[initIndex]) {
+    lastLiftoffPos_[leg] = endEffectorKinematicsPtr_->getPosition(initState)[leg];
+    lastLiftoffPos_[leg].z() -= 0.02;
+    for (size_t i = initIndex; i < projections.size(); ++i) {
+      if (!contactFlagStocks[i]) {
+        break;
+      }
+      projections[i].positionInWorld = lastLiftoffPos_[leg];
+    }
+    for (int i = static_cast<int>(initIndex); i >= 0; --i) {
+      if (!contactFlagStocks[i]) {
+        break;
+      }
+      projections[i].positionInWorld = lastLiftoffPos_[leg];
+    }
+  }
+
+  if (initTime > convexRegionSelectorPtr_->getInitStandFinalTimes()[leg]) {
+    for (int i = static_cast<int>(initIndex); i >= 0; --i) {
+      if (contactFlagStocks[i]) {
+        projections[i].positionInWorld = lastLiftoffPos_[leg];
+      }
+      if (i + 1 < static_cast<int>(contactFlagStocks.size()) && !contactFlagStocks[i] && !contactFlagStocks[i + 1]) {
+        break;
+      }
+    }
+  }
+}
+
+std::pair<scalar_array_t, scalar_array_t> PerceptiveLeggedReferenceManager::getHeights(
+    const std::vector<bool>& contactFlagStocks, const std::vector<convex_plane_decomposition::PlanarTerrainProjection>& projections) {
+  scalar_array_t liftOffHeights(projections.size(), 0.0);
+  scalar_array_t touchDownHeights(projections.size(), 0.0);
+
+  for (size_t i = 1; i < projections.size(); ++i) {
+    if (!contactFlagStocks[i]) {
+      liftOffHeights[i] = contactFlagStocks[i - 1] ? projections[i - 1].positionInWorld.z() : liftOffHeights[i - 1];
+    }
+  }
+  for (int i = static_cast<int>(projections.size()) - 2; i >= 0; --i) {
+    if (!contactFlagStocks[i]) {
+      touchDownHeights[i] = contactFlagStocks[i + 1] ? projections[i + 1].positionInWorld.z() : touchDownHeights[i + 1];
+    }
+  }
+
+  return {liftOffHeights, touchDownHeights};
+}
+
+contact_flag_t PerceptiveLeggedReferenceManager::getFootPlacementFlags(scalar_t time) const {
+  contact_flag_t flag;
+  const auto finalTime = convexRegionSelectorPtr_->getInitStandFinalTimes();
+  for (size_t i = 0; i < flag.size(); ++i) {
+    flag[i] = getContactFlags(time)[i] && time >= finalTime[i];
+  }
+  return flag;
+}
+
+}  // namespace legged

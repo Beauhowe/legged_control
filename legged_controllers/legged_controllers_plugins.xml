@@ -13,4 +13,11 @@
             The basic legged controller with cheat state estimator
         </description>
     </class>
+
+    <class name="legged/PerceptiveController" type="legged::PerceptiveController"
+           base_class_type="controller_interface::ControllerInterface">
+        <description>
+            The perceptive legged controller extension point.
+        </description>
+    </class>
 </library>

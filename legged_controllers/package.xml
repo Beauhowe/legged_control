@@ -10,12 +10,16 @@
     <buildtool_depend>ament_cmake</buildtool_depend>
 
     <build_depend>cmake_clang_tools</build_depend>
+    <build_depend>libpcl-dev</build_depend>
     <depend>rclcpp</depend>
     <depend>rclcpp_lifecycle</depend>
     <depend>legged_common</depend>
     <depend>legged_interface</depend>
     <depend>legged_estimation</depend>
     <depend>legged_wbc</depend>
+    <depend>grid_map_sdf</depend>
+    <depend>convex_plane_decomposition_msgs</depend>
+    <depend>convex_plane_decomposition_ros</depend>
 
     <depend>controller_interface</depend>
     <depend>hardware_interface</depend>

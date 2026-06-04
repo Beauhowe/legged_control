@@ -1,0 +1,13 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 500
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    legged_perceptive_controller:
+      type: legged/PerceptiveController
+
+legged_perceptive_controller:
+  ros__parameters:
+    imuName: base_imu
