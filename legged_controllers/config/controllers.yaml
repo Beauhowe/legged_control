@@ -13,10 +13,17 @@ controller_manager:
     legged_cheater_controller:
       type: legged/LeggedCheaterController
 
+    legged_perceptive_controller:
+      type: legged/PerceptiveController
+
 legged_controller:
   ros__parameters:
     imuName: base_imu
 
 legged_cheater_controller:
+  ros__parameters:
+    imuName: base_imu
+
+legged_perceptive_controller:
   ros__parameters:
     imuName: base_imu

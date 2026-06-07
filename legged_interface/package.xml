@@ -24,6 +24,11 @@
     <depend>ocs2_centroidal_model</depend>
     <depend>ocs2_legged_robot</depend>
     <depend>ocs2_self_collision</depend>
+    <depend>ocs2_perceptive</depend>
+    <depend>ocs2_sphere_approximation</depend>
+    <depend>grid_map_sdf</depend>
+    <depend>libpcl-all-dev</depend>
+    <depend>convex_plane_decomposition</depend>
     <depend>pinocchio</depend>
 
     <export>

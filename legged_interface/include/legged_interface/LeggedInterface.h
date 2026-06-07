@@ -62,6 +62,7 @@ class LeggedInterface : public RobotInterface {
                                      bool verbose);
   virtual void setupPreComputation(const std::string& taskFile, const std::string& urdfFile, const std::string& referenceFile,
                                    bool verbose);
+  virtual void setupPerceptiveConstraints(const std::string& taskFile, bool verbose);
 
   std::shared_ptr<GaitSchedule> loadGaitSchedule(const std::string& file, bool verbose) const;
 

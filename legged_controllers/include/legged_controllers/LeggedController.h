@@ -98,6 +98,7 @@ class LeggedController : public controller_interface::ControllerInterface {
   bool mrtPeriodMismatchWarned_{false};
 };
 
+
 class LeggedCheaterController : public LeggedController {
  protected:
   void setupStateEstimate(const std::string& taskFile, bool verbose) override;

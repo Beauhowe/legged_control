@@ -318,7 +318,7 @@ class P1GaitDdsBridge final : public rclcpp::Node {
     lieDownGaitId_ = declare_parameter<int>("lie_down_gait_id", 5);
     emergencyResetModeSchedule_ = declare_parameter<bool>("emergency_reset_mode_schedule", false);
     auto mpcReferenceFile = declare_parameter<std::string>("mpc_reference_file", "");
-    const auto locomotionGaitIds = declare_parameter<std::string>("locomotion_gait_ids", "1");
+    const auto locomotionGaitIds = declare_parameter<std::string>("locomotion_gait_ids", "1,4");
     locomotionGaitIds_ = splitCommaSeparatedInts(locomotionGaitIds);
     auto modeScheduleTopic = declare_parameter<std::string>("mode_schedule_topic", "");
     auto targetTopic = declare_parameter<std::string>("target_topic", "");
@@ -575,7 +575,7 @@ class P1GaitDdsBridge final : public rclcpp::Node {
   int standGaitId_{0};
   int lieDownGaitId_{5};
   int activeGaitId_{-1};
-  std::vector<int> locomotionGaitIds_{1};
+  std::vector<int> locomotionGaitIds_{1, 4};
   bool lastTrigger_{false};
   bool lastCmdZero_{true};
   std::atomic<bool> workerRunning_{false};

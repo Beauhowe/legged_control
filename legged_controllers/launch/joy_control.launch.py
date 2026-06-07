@@ -94,6 +94,7 @@ def _launch_setup(context, *_args, **_kwargs):
                 {"teleop_config_file": teleop_config},
                 {"gait_mappings_file": gait_mappings},
                 {"gait_command_file": gait_file},
+                {"locomotion_gaits": LaunchConfiguration("locomotion_gaits")},
                 {"joy_topic": joy_topic},
                 {"cmd_vel_topic": cmd_vel_topic},
                 {"stand_reference_file": stand_reference_file},
@@ -145,6 +146,7 @@ def generate_launch_description():
             DeclareLaunchArgument("stand_reference_file", default_value=""),
             DeclareLaunchArgument("lie_down_reference_file", default_value=""),
             DeclareLaunchArgument("gait_command_file", default_value=""),
+            DeclareLaunchArgument("locomotion_gaits", default_value="trot,static_walk"),
             OpaqueFunction(function=_launch_setup),
         ]
     )

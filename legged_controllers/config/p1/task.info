@@ -20,7 +20,7 @@ swing_trajectory_config
 {
   liftOffVelocity               0.05
   touchDownVelocity            -0.1
-  swingHeight                   0.15
+  swingHeight                   0.22
   swingTimeScale                0.15
 }
 
@@ -279,6 +279,27 @@ selfCollision
   ; relaxed log barrier parameters
   mu      1e-2
   delta   1e-3
+}
+
+perceptive
+{
+  enabled       false
+  groundHeight  0.0
+  clearance     0.02
+  weight        1.0
+  mu            1e-2
+  delta         1e-3
+}
+
+footPlacement
+{
+  enable                 true
+  enableCBF              false
+  cbfLambda              1.0
+  cbfPenaltyMuParam      1e-2
+  cbfPenaltyDeltaParam   1e-4
+  statePenaltyMuParam    1e-2
+  statePenaltyDeltaParam 1e-4
 }
 
 ; Whole body control

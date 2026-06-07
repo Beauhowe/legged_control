@@ -34,6 +34,7 @@ controller_interface::CallbackReturn LeggedController::on_init() {
   auto_declare<std::string>("referenceFile", "");
   auto_declare<std::string>("imuName", "base_imu");
   auto_declare<std::string>("emergencyStopTopic", "");
+  auto_declare<bool>("publish_robot_state", true);
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -112,8 +113,10 @@ controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp
   CentroidalModelPinocchioMapping pinocchioMapping(leggedInterface_->getCentroidalModelInfo());
   eeKinematicsPtr_ = std::make_shared<PinocchioEndEffectorKinematics>(leggedInterface_->getPinocchioInterface(), pinocchioMapping,
                                                                       leggedInterface_->modelSettings().contactNames3DoF);
+  const auto publishRobotState = node->get_parameter("publish_robot_state").as_bool();
   robotVisualizer_ = std::make_shared<LeggedRobotVisualizer>(leggedInterface_->getPinocchioInterface(),
-                                                             leggedInterface_->getCentroidalModelInfo(), *eeKinematicsPtr_, rosNode_);
+                                                             leggedInterface_->getCentroidalModelInfo(), *eeKinematicsPtr_, rosNode_,
+                                                             100.0, publishRobotState);
   selfCollisionVisualization_.reset(new LeggedSelfCollisionVisualization(leggedInterface_->getPinocchioInterface(),
                                                                          leggedInterface_->getGeometryInterface(), pinocchioMapping));
 
@@ -374,6 +377,7 @@ void LeggedController::setupMpc() {
   mpc_->getSolverPtr()->setReferenceManager(rosReferenceManagerPtr);
   observationPublisher_ = rosNode_->create_publisher<ocs2_msgs::msg::MpcObservation>(robotName + "_mpc_observation", 1);
 }
+
 
 void LeggedController::setupMrt() {
   mpcMrtInterface_ = std::make_shared<MPC_MRT_Interface>(*mpc_);

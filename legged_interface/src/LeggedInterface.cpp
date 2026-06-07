@@ -125,6 +125,7 @@ void LeggedInterface::setupOptimalControlProblem(const std::string& taskFile, co
   // Self-collision avoidance constraint
   problemPtr_->stateSoftConstraintPtr->add("selfCollision",
                                            getSelfCollisionConstraint(*pinocchioInterfacePtr_, taskFile, "selfCollision", verbose));
+  setupPerceptiveConstraints(taskFile, verbose);
 
   setupPreComputation(taskFile, urdfFile, referenceFile, verbose);
 
@@ -171,6 +172,11 @@ void LeggedInterface::setupPreComputation(const std::string& taskFile, const std
   problemPtr_->preComputationPtr = std::make_unique<LeggedRobotPreComputation>(
       *pinocchioInterfacePtr_, centroidalModelInfo_, *referenceManagerPtr_->getSwingTrajectoryPlanner(), modelSettings_);
 }
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+void LeggedInterface::setupPerceptiveConstraints(const std::string& taskFile, bool verbose) {}
 
 /******************************************************************************************************/
 /******************************************************************************************************/

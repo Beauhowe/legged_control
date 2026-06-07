@@ -12,6 +12,7 @@ find_package(pluginlib REQUIRED)
 find_package(angles REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -24,17 +25,28 @@ find_package(legged_common REQUIRED)
 find_package(legged_interface REQUIRED)
 find_package(legged_wbc REQUIRED)
 find_package(legged_estimation REQUIRED)
+find_package(grid_map_sdf REQUIRED)
+find_package(grid_map_ros REQUIRED)
+find_package(convex_plane_decomposition_ros REQUIRED)
+find_package(convex_plane_decomposition_msgs REQUIRED)
+find_package(convex_plane_decomposition REQUIRED)
 find_package(pinocchio REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common)
 find_package(Boost REQUIRED COMPONENTS filesystem system log log_setup)
 
 add_library(${PROJECT_NAME} SHARED
+        src/visualization/FootPlacementVisualization.cpp
+        src/visualization/SphereVisualization.cpp
+        src/synchronized_module/PlanarTerrainReceiver.cpp
         src/LeggedController.cpp
+        src/PerceptiveController.cpp
         )
 
 target_include_directories(${PROJECT_NAME}
         PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+        ${PCL_INCLUDE_DIRS}
         )
 
 ament_target_dependencies(${PROJECT_NAME}
@@ -45,6 +57,7 @@ ament_target_dependencies(${PROJECT_NAME}
         pluginlib
         angles
         std_msgs
+        visualization_msgs
         ocs2_msgs
         ocs2_ros_interfaces
         ocs2_legged_robot_ros
@@ -54,6 +67,11 @@ ament_target_dependencies(${PROJECT_NAME}
         legged_interface
         legged_wbc
         legged_estimation
+        grid_map_sdf
+        grid_map_ros
+        convex_plane_decomposition_ros
+        convex_plane_decomposition_msgs
+        convex_plane_decomposition
         pinocchio
         )
 
@@ -77,6 +95,10 @@ ament_target_dependencies(legged_target_trajectories_publisher
         tf2_ros
         ocs2_msgs
         ocs2_ros_interfaces
+        grid_map_ros
+        convex_plane_decomposition_ros
+        convex_plane_decomposition_msgs
+        convex_plane_decomposition
         )
 target_compile_options(legged_target_trajectories_publisher PRIVATE ${OCS2_CXX_FLAGS})
 
@@ -144,6 +166,7 @@ ament_export_dependencies(
         pluginlib
         angles
         std_msgs
+        visualization_msgs
         ocs2_msgs
         ocs2_ros_interfaces
         ocs2_legged_robot_ros
@@ -153,6 +176,11 @@ ament_export_dependencies(
         legged_interface
         legged_wbc
         legged_estimation
+        grid_map_sdf
+        grid_map_ros
+        convex_plane_decomposition_ros
+        convex_plane_decomposition_msgs
+        convex_plane_decomposition
         pinocchio
         )
 ament_export_targets(export_${PROJECT_NAME})
