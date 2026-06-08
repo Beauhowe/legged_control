@@ -28,3 +28,13 @@ repositories:
     type: git
     url: https://github.com/AetherControl/p1_dds_joy_tools.git
     version: main
+
+  elev_mpc:
+    type: git
+    url: https://github.com/Beauhowe/elev_mpc.git
+    version: dev
+
+  perceptive_legged_control:
+    type: git
+    url: https://github.com/Beauhowe/perceptive_legged_control.git
+    version: main
