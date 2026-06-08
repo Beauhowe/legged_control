@@ -56,6 +56,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrandr2 \
     libxss1 \
     libxtst6 \
+    libcgal-dev \
     ros-humble-controller-manager \
     ros-humble-gazebo-dev \
     ros-humble-gazebo-ros-pkgs \
@@ -70,6 +71,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-rqt \
     ros-humble-rqt-common-plugins \
     ros-humble-xacro \
+    ros-humble-grid-map-sdf \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m pip install --no-cache-dir -U \

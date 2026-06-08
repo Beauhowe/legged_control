@@ -330,7 +330,7 @@ void LeggedHWSim::updateGroundTruth(const rclcpp::Time& time) {
 
   nav_msgs::msg::Odometry odom;
   odom.header.stamp = time;
-  odom.header.frame_id = "world";
+  odom.header.frame_id = "odom";
   odom.child_frame_id = "base";
   odom.pose.pose.position.x = pose.Pos().X();
   odom.pose.pose.position.y = pose.Pos().Y();

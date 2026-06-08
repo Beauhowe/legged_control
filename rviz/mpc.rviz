@@ -69,7 +69,97 @@ Visualization Manager:
         Expand Joint Details: false
         Expand Link Details: false
         Expand Tree: false
+        LF_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        LF_calf:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        LF_hip:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        LF_thigh:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        LH_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        LH_calf:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        LH_hip:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        LH_thigh:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         Link Tree Style: Links in Alphabetic Order
+        RF_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        RF_calf:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        RF_hip:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        RF_thigh:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        RH_FOOT:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        RH_calf:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        RH_hip:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        RH_thigh:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_imu:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -94,7 +184,10 @@ Visualization Manager:
       Enabled: true
       Name: currentState
       Namespaces:
-        {}
+        Center of Pressure: true
+        EE Forces: true
+        EE Positions: true
+        Support Polygon: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -106,7 +199,9 @@ Visualization Manager:
       Enabled: true
       Name: optimizedStateTrajectory
       Namespaces:
-        {}
+        CoM Trajectory: true
+        EE Trajectories: true
+        Future footholds: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -118,7 +213,7 @@ Visualization Manager:
       Enabled: true
       Name: base
       Namespaces:
-        {}
+        "": true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -131,7 +226,7 @@ Visualization Manager:
       Enabled: true
       Name: LF
       Namespaces:
-        {}
+        "": true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -144,7 +239,7 @@ Visualization Manager:
       Enabled: true
       Name: LH
       Namespaces:
-        {}
+        "": true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -152,6 +247,32 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /legged_robot/desiredFeetTrajectory/LH
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Class: grid_map_rviz_plugin/GridMap
+      Color: 200; 200; 200
+      Color Layer: elevation
+      Color Transformer: GridMapLayer
+      Enabled: true
+      Height Layer: elevation
+      Height Transformer: GridMapLayer
+      History Length: 1
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 10
+      Min Color: 170; 170; 127
+      Min Intensity: 0
+      Name: GridMap
+      Show Grid Lines: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /convex_plane_decomposition_ros/filtered_map
+      Use Rainbow: false
       Value: true
   Enabled: true
   Global Options:
@@ -199,25 +320,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 21.276683807373047
+      Distance: 0.708092212677002
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.051201239228248596
-        Y: -0.00539033766835928
-        Z: 1.501128077507019
+        X: 0.9756113886833191
+        Y: -0.4902498424053192
+        Z: 1.0776441097259521
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6397972106933594
+      Pitch: 0.819797158241272
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.973529577255249
+      Yaw: 3.268531560897827
     Saved: ~
 Window Geometry:
   Displays:

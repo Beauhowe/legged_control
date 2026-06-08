@@ -18,6 +18,7 @@ def launch_setup(context, *args, **kwargs):
     task_file = LaunchConfiguration("task_file").perform(context)
     reference_file = LaunchConfiguration("reference_file").perform(context)
     emergency_stop_topic = LaunchConfiguration("emergency_stop_topic").perform(context)
+    legged_controller_type = LaunchConfiguration("legged_controller_type").perform(context)
 
     description_share = get_package_share_directory("legged_description")
     gazebo_share = get_package_share_directory("legged_gazebo")
@@ -40,6 +41,11 @@ def launch_setup(context, *args, **kwargs):
     with open(controller_params_file, "w", encoding="utf-8") as params:
         yaml.safe_dump(
             {
+                "controller_manager": {
+                    "ros__parameters": {
+                        "legged_controller": {"type": legged_controller_type},
+                    }
+                },
                 "legged_controller": {
                     "ros__parameters": {
                         "urdfFile": generated_urdf,
@@ -165,6 +171,7 @@ def generate_launch_description():
             DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference_lie_down.info")),
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("emergency_stop_topic", default_value="/p1_emergency_stop"),
+            DeclareLaunchArgument("legged_controller_type", default_value="legged/LeggedController"),
             OpaqueFunction(function=launch_setup),
         ]
     )
