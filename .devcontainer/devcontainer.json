@@ -9,7 +9,7 @@
   "remoteUser": "ros",
   "containerUser": "ros",
   "runArgs": [
-    "--name=legged_control_dev",
+    "--name=legged_perc_dev",
     "--network=host",
     "--ipc=host",
     "--privileged",

@@ -160,20 +160,26 @@ void LeggedController::starting(const rclcpp::Time& time) {
   currentObservation_.input.setZero(leggedInterface_->getCentroidalModelInfo().inputDim);
   currentObservation_.mode = ModeNumber::STANCE;
 
+  // 不在激活时强制优化。保持空闲（关节零指令），直到收到运动步态命令。
+  mpcIdle_.store(true);
+  mpcRunning_ = false;
+  motionGaitRequested_.store(false);
+  RCLCPP_INFO(rosNode_->get_logger(),
+              "Controller activated in IDLE. MPC will start after a locomotion gait (with swing phase) is received.");
+}
+
+void LeggedController::startMpcOptimization(const rclcpp::Time& time) {
+  // 非阻塞启动：以当前观测为初值，放行后台 MPC 线程开始优化。
+  // 首份策略就绪前 update() 仍输出零指令，不阻塞实时循环。
+  currentObservation_.input.setZero(leggedInterface_->getCentroidalModelInfo().inputDim);
   TargetTrajectories target_trajectories({currentObservation_.time}, {currentObservation_.state}, {currentObservation_.input});
 
-  // Set the first observation and command and wait for optimization to finish
   mpcMrtInterface_->setCurrentObservation(currentObservation_);
   mpcMrtInterface_->getReferenceManager().setTargetTrajectories(target_trajectories);
-  RCLCPP_INFO(rosNode_->get_logger(), "Waiting for the initial policy ...");
-  rclcpp::Rate rate(leggedInterface_->mpcSettings().mrtDesiredFrequency_);
-  while (!mpcMrtInterface_->initialPolicyReceived() && rclcpp::ok()) {
-    mpcMrtInterface_->advanceMpc();
-    rate.sleep();
-  }
-  RCLCPP_INFO(rosNode_->get_logger(), "Initial policy has been received.");
+  RCLCPP_INFO(rosNode_->get_logger(), "Locomotion gait received. Starting MPC optimization ...");
 
-  mpcRunning_ = true;
+  mpcRunning_ = true;   // 放行后台 MPC 线程(setupMrt 中创建)开始 advanceMpc
+  mpcIdle_.store(false);
 }
 
 void LeggedController::resyncMpcAfterEmergencyStop() {
@@ -233,6 +239,29 @@ controller_interface::return_type LeggedController::update(const rclcpp::Time& t
     for (size_t j = 0; j < leggedInterface_->getCentroidalModelInfo().actuatedDofNum; ++j) {
       setHybridJointCommand(j, 0, 0, 0, 0, 0);
     }
+    return controller_interface::return_type::OK;
+  }
+
+  // 空闲态：尚未收到运动步态命令。输出零指令(完全被动)，不评估策略。
+  if (mpcIdle_.load()) {
+    if (motionGaitRequested_.load()) {
+      startMpcOptimization(time);
+      // startMpcOptimization 已将 mpcIdle_ 置 false，继续执行下方正常路径
+    } else {
+      for (size_t j = 0; j < leggedInterface_->getCentroidalModelInfo().actuatedDofNum; ++j) {
+        setHybridJointCommand(j, 0, 0, 0, 0, 0);
+      }
+      observationPublisher_->publish(ros_msg_conversions::createObservationMsg(currentObservation_));
+      return controller_interface::return_type::OK;
+    }
+  }
+
+  // 初始策略未就绪时（MPC 后台线程刚启动但尚未完成首次求解），继续输出零指令。
+  if (!mpcMrtInterface_->initialPolicyReceived()) {
+    for (size_t j = 0; j < leggedInterface_->getCentroidalModelInfo().actuatedDofNum; ++j) {
+      setHybridJointCommand(j, 0, 0, 0, 0, 0);
+    }
+    observationPublisher_->publish(ros_msg_conversions::createObservationMsg(currentObservation_));
     return controller_interface::return_type::OK;
   }
 
@@ -373,6 +402,18 @@ void LeggedController::setupMpc() {
   mpc_->getSolverPtr()->addSynchronizedModule(gaitReceiverPtr);
   mpc_->getSolverPtr()->setReferenceManager(rosReferenceManagerPtr);
   observationPublisher_ = rosNode_->create_publisher<ocs2_msgs::msg::MpcObservation>(robotName + "_mpc_observation", 1);
+
+  // 监听步态命令：收到含摆动相(非 STANCE)的运动步态时，请求启动 MPC 优化。
+  // 与 GaitReceiver 订阅同一话题；纯 STANCE 的步态(stance/lie_down)不触发。
+  motionGaitSubscriber_ = rosNode_->create_subscription<ocs2_msgs::msg::ModeSchedule>(
+      robotName + "_mpc_mode_schedule", 1, [this](const ocs2_msgs::msg::ModeSchedule::ConstSharedPtr msg) {
+        const bool hasSwingPhase =
+            std::any_of(msg->mode_sequence.begin(), msg->mode_sequence.end(),
+                        [](size_t mode) { return mode != ModeNumber::STANCE; });
+        if (hasSwingPhase) {
+          motionGaitRequested_.store(true);
+        }
+      });
 }
 
 void LeggedController::setupMrt() {

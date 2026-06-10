@@ -12,6 +12,7 @@
 #include <ocs2_core/misc/Benchmark.h>
 #include <ocs2_legged_robot_ros/visualization/LeggedRobotVisualizer.h>
 #include <ocs2_mpc/MPC_MRT_Interface.h>
+#include <ocs2_msgs/msg/mode_schedule.hpp>
 #include <ocs2_msgs/msg/mpc_observation.hpp>
 #include <rclcpp/time.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -74,6 +75,7 @@ class LeggedController : public controller_interface::ControllerInterface {
   std::shared_ptr<LeggedSelfCollisionVisualization> selfCollisionVisualization_;
   rclcpp::Publisher<ocs2_msgs::msg::MpcObservation>::SharedPtr observationPublisher_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr emergencyStopSubscriber_;
+  rclcpp::Subscription<ocs2_msgs::msg::ModeSchedule>::SharedPtr motionGaitSubscriber_;
   rclcpp::Node::SharedPtr rosNode_;
   rclcpp::executors::SingleThreadedExecutor rosExecutor_;
   std::thread rosSpinThread_;
@@ -81,12 +83,15 @@ class LeggedController : public controller_interface::ControllerInterface {
  private:
   void starting(const rclcpp::Time& time);
   void resyncMpcAfterEmergencyStop();
+  void startMpcOptimization(const rclcpp::Time& time);
   void setHybridJointCommand(size_t jointIndex, scalar_t posDes, scalar_t velDes, scalar_t kp, scalar_t kd, scalar_t ff);
   double getStateInterfaceValue(const std::string& interfaceName) const;
 
   std::thread mpcThread_;
   std::atomic_bool controllerRunning_{}, mpcRunning_{};
   std::atomic_bool mpcAdvancePaused_{false};
+  std::atomic_bool mpcIdle_{true};           // true = 空闲，等待运动步态命令
+  std::atomic_bool motionGaitRequested_{false};
   benchmark::RepeatedTimer mpcTimer_;
   benchmark::RepeatedTimer wbcTimer_;
   std::atomic_bool emergencyStopActive_{false};
