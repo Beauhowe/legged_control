@@ -73,6 +73,12 @@ controller_interface::InterfaceConfiguration LeggedController::state_interface_c
 }
 
 controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp_lifecycle::State& /*previous_state*/) {
+  // Guard against re-entry: on_configure must not be called while a previous call is still running
+  // (e.g. spawner retrying due to CppAD compile timeout). rosNode_ is set early in this function,
+  // so its presence means configure is already in progress or completed.
+  if (rosNode_) {
+    return controller_interface::CallbackReturn::SUCCESS;
+  }
   // Initialize OCS2
   const auto node = get_node();
   const auto urdfFile = node->get_parameter("urdfFile").as_string();
