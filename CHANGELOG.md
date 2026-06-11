@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-10
+
+### Changed
+- `LeggedController` 控制器激活后不再强制启动 MPC 优化，改为进入 **空闲态**：所有关节输出零指令（`kp=kd=ff=0`，完全被动），直到收到步态命令才启动优化。
+- `starting()` 去掉激活时的阻塞式初始策略等待，仅设置时钟基准与初始观测，置 `mpcIdle_=true`、`mpcRunning_=false`。
+- 新增 `startMpcOptimization()`：**非阻塞**放行后台 MPC 线程（不在实时 `update()` 中阻塞等待策略）；首份策略就绪前 `update()` 持续输出零指令，避免 `evaluatePolicy` 在无策略时崩溃。
+
+### Added
+- `setupMpc()` 新增订阅 `legged_robot_mpc_mode_schedule`（与 `GaitReceiver` 同话题），收到**任意**步态命令即置 `motionGaitRequested_`，触发 MPC 优化启动。
+- `LeggedController.h` 新增成员 `mpcIdle_`、`motionGaitRequested_`、`motionGaitSubscriber_` 及方法 `startMpcOptimization()`。
+
+### Notes / 迁移说明
+- 激活后机器人完全被动（无支撑力矩），应在 **已趴卧或受机械结构支撑** 的状态下激活，否则站立/悬空姿态会瘫倒。
+- 启动条件为"收到任意步态命令"，包含 `stance`、`lie_down` 等纯 STANCE 步态。
+- 急停逻辑与安全检查不变。
+- 仅编译验证（`colcon build --packages-select legged_controllers` 通过）；实机/Gazebo 行为（被动姿态安全性、步态启动平顺性）需现场确认。
+
 ## [0.2.0] - 2026-06-02
 
 ### Changed

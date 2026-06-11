@@ -403,17 +403,11 @@ void LeggedController::setupMpc() {
   mpc_->getSolverPtr()->setReferenceManager(rosReferenceManagerPtr);
   observationPublisher_ = rosNode_->create_publisher<ocs2_msgs::msg::MpcObservation>(robotName + "_mpc_observation", 1);
 
-  // 监听步态命令：收到含摆动相(非 STANCE)的运动步态时，请求启动 MPC 优化。
-  // 与 GaitReceiver 订阅同一话题；纯 STANCE 的步态(stance/lie_down)不触发。
+  // 监听步态命令：收到任意步态命令(含 stance/lie_down)即请求启动 MPC 优化。
+  // 与 GaitReceiver 订阅同一话题。
   motionGaitSubscriber_ = rosNode_->create_subscription<ocs2_msgs::msg::ModeSchedule>(
-      robotName + "_mpc_mode_schedule", 1, [this](const ocs2_msgs::msg::ModeSchedule::ConstSharedPtr msg) {
-        const bool hasSwingPhase =
-            std::any_of(msg->mode_sequence.begin(), msg->mode_sequence.end(),
-                        [](size_t mode) { return mode != ModeNumber::STANCE; });
-        if (hasSwingPhase) {
-          motionGaitRequested_.store(true);
-        }
-      });
+      robotName + "_mpc_mode_schedule", 1,
+      [this](const ocs2_msgs::msg::ModeSchedule::ConstSharedPtr /*msg*/) { motionGaitRequested_.store(true); });
 }
 
 void LeggedController::setupMrt() {
