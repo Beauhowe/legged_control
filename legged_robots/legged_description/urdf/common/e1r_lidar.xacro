@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<robot name="lidar" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- 矩形视场 GPU 雷达：水平 120° × 垂直 90°，角分辨率水平/垂直均为 1.25° → 96×72 线束，最大量程 75 m -->
+    <xacro:macro name="lidar" params="parent_link:=lidar_link name_prefix:=mid360
+                  h_fov_deg:=120 v_fov_deg:=90 angular_resolution_deg:=1.25 max_range:=75.0
+                  xyz:='0 0 0' rpy:='0 0 0'">
+
+        <xacro:property name="h_half_rad" value="${h_fov_deg / 2.0 * 3.1415926535897931 / 180.0}"/>
+        <xacro:property name="v_half_rad" value="${v_fov_deg / 2.0 * 3.1415926535897931 / 180.0}"/>
+        <xacro:property name="h_samples" value="${h_fov_deg / angular_resolution_deg}"/>
+        <xacro:property name="vertical_lines" value="${v_fov_deg / angular_resolution_deg}"/>
+
+        <link name="${name_prefix}_lidar_link">
+            <inertial>
+                <mass value="0.01"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+            </inertial>
+            <visual><geometry><box size="0.03 0.02 0.04"/></geometry></visual>
+        </link>
+
+        <joint name="${name_prefix}_to_lidar" type="fixed">
+            <parent link="${parent_link}"/>
+            <child link="${name_prefix}_lidar_link"/>
+            <origin xyz="${xyz}" rpy="${rpy}"/>
+        </joint>
+
+        <gazebo reference="${name_prefix}_to_lidar">
+            <disableFixedJointLumping>true</disableFixedJointLumping>
+        </gazebo>
+
+        <gazebo reference="${name_prefix}_lidar_link">
+            <sensor name="${name_prefix}_lidar" type="ray">
+                <pose>0 0 0 0 0 0</pose>
+                <update_rate>10</update_rate>
+                <ray>
+                    <scan>
+                        <horizontal>
+                            <samples>${int(h_samples)}</samples>
+                            <resolution>1</resolution>
+                            <min_angle>${-h_half_rad}</min_angle>
+                            <max_angle>${h_half_rad}</max_angle>
+                        </horizontal>
+                        <vertical>
+                            <samples>${int(vertical_lines)}</samples>
+                            <resolution>1</resolution>
+                            <min_angle>${-v_half_rad}</min_angle>
+                            <max_angle>${v_half_rad}</max_angle>
+                        </vertical>
+                    </scan>
+                    <range>
+                        <min>0.1</min>
+                        <max>${max_range}</max>
+                        <resolution>0.01</resolution>
+                    </range>
+                    <noise>
+                        <type>gaussian</type>
+                        <mean>0.0</mean>
+                        <stddev>0.01</stddev>
+                    </noise>
+                </ray>
+                <plugin name="${name_prefix}_lidar_controller" filename="libgazebo_ros_ray_sensor.so">
+                    <ros>
+                        <namespace>/${name_prefix}</namespace>
+                        <remapping>~/out:=points</remapping>
+                    </ros>
+                    <output_type>sensor_msgs/PointCloud2</output_type>
+                    <frame_name>${name_prefix}_lidar_link</frame_name>
+                </plugin>
+                <always_on>1</always_on>
+                <visualize>false</visualize>
+            </sensor>
+        </gazebo>
+
+    </xacro:macro>
+</robot>

@@ -53,6 +53,7 @@ def launch_setup(context, *args, **kwargs):
                         "referenceFile": reference_file,
                         "imuName": "base_imu",
                         "emergencyStopTopic": emergency_stop_topic,
+                        "use_sim_time": True,
                     }
                 },
                 "legged_cheater_controller": {
@@ -62,6 +63,7 @@ def launch_setup(context, *args, **kwargs):
                         "referenceFile": reference_file,
                         "imuName": "base_imu",
                         "emergencyStopTopic": emergency_stop_topic,
+                        "use_sim_time": True,
                     }
                 },
             },
@@ -103,7 +105,7 @@ def launch_setup(context, *args, **kwargs):
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="screen",
-        parameters=[{"robot_description": robot_description_xml}],
+        parameters=[{"robot_description": robot_description_xml, "use_sim_time": True}],
     )
 
     spawn_entity = Node(
