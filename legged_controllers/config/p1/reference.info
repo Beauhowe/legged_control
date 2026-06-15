@@ -9,9 +9,9 @@ locomotionComHeight                 0.58
 ; stance 使用 defaultJointState（站立姿态），lie_down 使用 lieDownJointState（趴下姿态）。
 ; postureKp / postureKd 为固定姿态下的关节位控增益（可在此调软避免动作过猛）。
 ; postureTransitionDuration 为进入/切换固定姿态时，从当前实测角平滑插值到目标角的时长[s]，避免硬跳变弹飞。
-postureKp                           270.0
+postureKp                           300.0
 postureKd                           4.0
-postureTransitionDuration           1.5
+postureTransitionDuration           2
 
 defaultJointState
 {

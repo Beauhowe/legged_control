@@ -138,7 +138,7 @@ mpc
 
   debugPrint                      false
 
-  mpcDesiredFrequency             100  ; [Hz]
+  mpcDesiredFrequency             50  ; [Hz]
   mrtDesiredFrequency             500 ; [Hz] Must match controller_manager update_rate
 }
 
@@ -296,7 +296,7 @@ frictionConeTask
 
 swingLegTask
 {
-    kp                   270
+    kp                   400
     kd                   17
 }
 
