@@ -105,6 +105,14 @@ controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp
         });
     RCLCPP_INFO(rosNode_->get_logger(), "Controller emergency stop topic: %s", emergencyStopTopic.c_str());
   }
+
+  // 固定姿态命令订阅：上游(joy_control / DDS 桥)对 stance/lie_down 发布 Int8 而非 mode_schedule。
+  // 1 = STAND, 2 = LIE_DOWN, 0 = 解除(回到运动/空闲)。QoS 与急停一致(latched)，订阅者后启动也能收到最近一次命令。
+  postureCommandSubscriber_ = rosNode_->create_subscription<std_msgs::msg::Int8>(
+      "/" + std::string("legged_robot") + "_posture_command", rclcpp::QoS(1).reliable().transient_local(),
+      [this](const std_msgs::msg::Int8::SharedPtr msg) { postureRequest_.store(msg->data); });
+  RCLCPP_INFO(rosNode_->get_logger(), "Controller posture command topic: /legged_robot_posture_command");
+
   rosExecutor_.add_node(rosNode_);
   rosSpinThread_ = std::thread([this]() { rosExecutor_.spin(); });
 
@@ -114,6 +122,35 @@ controller_interface::CallbackReturn LeggedController::on_configure(const rclcpp
   setupLeggedInterface(taskFile, urdfFile, referenceFile, verbose);
   setupMpc();
   setupMrt();
+
+  // 加载固定姿态关节角与位控增益。站立角复用 defaultJointState，趴下角用 lieDownJointState。
+  // loadEigenMatrix 不会自动 resize，需按执行器自由度数预设尺寸，否则会抛 "empty matrix"。
+  // 这些字段仅 p1 reference.info 有；其它机型缺失时用默认值/退化处理，避免 configure 失败。
+  const size_t actuatedDofNum = leggedInterface_->getCentroidalModelInfo().actuatedDofNum;
+  standJointState_.setZero(actuatedDofNum);
+  lieDownJointState_.setZero(actuatedDofNum);
+  postureStartJointState_.setZero(actuatedDofNum);
+  loadData::loadEigenMatrix(referenceFile, "defaultJointState", standJointState_);
+  try {
+    loadData::loadEigenMatrix(referenceFile, "lieDownJointState", lieDownJointState_);
+  } catch (const std::exception&) {
+    lieDownJointState_ = standJointState_;  // 缺失趴下角时退化为站立角，lie_down 等同 stance
+    RCLCPP_WARN(rosNode_->get_logger(), "lieDownJointState not found in reference file; lie_down will fall back to stand posture.");
+  }
+  try {
+    loadData::loadCppDataType(referenceFile, "postureKp", postureKp_);
+    loadData::loadCppDataType(referenceFile, "postureKd", postureKd_);
+  } catch (const std::exception&) {
+    RCLCPP_WARN(rosNode_->get_logger(), "postureKp/postureKd not found; using defaults kp=%.1f kd=%.1f.", postureKp_, postureKd_);
+  }
+  try {
+    loadData::loadCppDataType(referenceFile, "postureTransitionDuration", postureTransitionDuration_);
+  } catch (const std::exception&) {
+    RCLCPP_WARN(rosNode_->get_logger(), "postureTransitionDuration not found; using default %.2fs.", postureTransitionDuration_);
+  }
+  RCLCPP_INFO(rosNode_->get_logger(), "Posture position control: kp=%.1f kd=%.1f transition=%.2fs", postureKp_, postureKd_,
+              postureTransitionDuration_);
+
   // Visualization
   CentroidalModelPinocchioMapping pinocchioMapping(leggedInterface_->getCentroidalModelInfo());
   eeKinematicsPtr_ = std::make_shared<PinocchioEndEffectorKinematics>(leggedInterface_->getPinocchioInterface(), pinocchioMapping,
@@ -170,6 +207,11 @@ void LeggedController::starting(const rclcpp::Time& time) {
   mpcIdle_.store(true);
   mpcRunning_ = false;
   motionGaitRequested_.store(false);
+  // 复位固定姿态状态，避免上次会话遗留(latched 话题)误触发。
+  postureActive_ = false;
+  activePosture_ = static_cast<int>(PostureCommand::NONE);
+  postureRequest_.store(static_cast<int>(PostureCommand::NONE));
+  lastHandledMotionSeq_ = motionGaitSeq_.load();
   RCLCPP_INFO(rosNode_->get_logger(),
               "Controller activated in IDLE. MPC will start after a locomotion gait (with swing phase) is received.");
 }
@@ -248,7 +290,63 @@ controller_interface::return_type LeggedController::update(const rclcpp::Time& t
     return controller_interface::return_type::OK;
   }
 
-  // 空闲态：尚未收到运动步态命令。输出零指令(完全被动)，不评估策略。
+  // ---- 固定姿态处理（stance / lie_down 绕过 MPC，直接关节位控）----
+  // 上游对 stance/lie_down 发布 Int8 姿态命令(1=STAND,2=LIE_DOWN,0=解除)，对运动步态发布 mode_schedule。
+  // 每收到一次 mode_schedule，motionGaitSeq_ 自增 —— 以此作为“退出固定姿态、恢复运动”的边沿信号。
+  const int postureReq = postureRequest_.load();
+  const int currentMotionSeq = motionGaitSeq_.load();
+  const bool newLocomotionRequested = (currentMotionSeq != lastHandledMotionSeq_);
+
+  if (newLocomotionRequested) {
+    if (postureActive_) {
+      postureActive_ = false;
+      activePosture_ = static_cast<int>(PostureCommand::NONE);
+      postureRequest_.store(static_cast<int>(PostureCommand::NONE));
+      RCLCPP_INFO(rosNode_->get_logger(), "Exiting fixed posture, resuming locomotion (MPC).");
+      // MPC 曾运行过(非空闲)才需重新同步到当前观测，避免姿态期间策略冻结导致的跳变。
+      // 若仍空闲(首个命令就是运动步态前曾处于姿态)，交由下方 mpcIdle_ 分支正常启动 MPC。
+      if (!mpcIdle_.load()) {
+        resyncMpcAfterEmergencyStop();
+      }
+    }
+    lastHandledMotionSeq_ = currentMotionSeq;
+  }
+
+  if (postureReq != static_cast<int>(PostureCommand::NONE) && !newLocomotionRequested) {
+    const vector_t& qTarget = (postureReq == static_cast<int>(PostureCommand::LIE_DOWN)) ? lieDownJointState_ : standJointState_;
+    if (!postureActive_ || activePosture_ != postureReq) {
+      // 进入(或切换)姿态：以"当前实测关节角"为插值起点，重置过渡计时。
+      // 关键防弹飞措施：不再一拍把 qDes 跳到目标角，而是在 postureTransitionDuration_ 内平滑插值，
+      // 每拍位置误差很小 -> kp*误差 的力矩平顺。
+      postureActive_ = true;
+      activePosture_ = postureReq;
+      postureElapsed_ = 0.0;
+      postureStartJointState_ = centroidal_model::getJointAngles(currentObservation_.state, leggedInterface_->getCentroidalModelInfo());
+      RCLCPP_INFO(rosNode_->get_logger(), "Entering fixed posture: %s (bypassing MPC, %.2fs ramp).",
+                  postureReq == static_cast<int>(PostureCommand::LIE_DOWN) ? "LIE_DOWN" : "STAND", postureTransitionDuration_);
+    }
+    // 暂停后台 MPC 优化(每周期覆盖上方按急停设置的值)，直接对 12 关节做插值位控。
+    mpcAdvancePaused_.store(true);
+    postureElapsed_ += periodSec;
+
+    // smoothstep 缓动 s(a) = 3a^2 - 2a^3，首尾速度为 0，避免起止冲击。
+    scalar_t alpha = (postureTransitionDuration_ > 1e-6) ? (postureElapsed_ / postureTransitionDuration_) : 1.0;
+    alpha = std::min(std::max(alpha, 0.0), 1.0);
+    const scalar_t s = alpha * alpha * (3.0 - 2.0 * alpha);
+    // 缓动相对时间的导数 ds/dt，用于前馈关节速度，让 kd 顺着运动而非阻碍。
+    const scalar_t dsdt = (postureTransitionDuration_ > 1e-6) ? (6.0 * alpha * (1.0 - alpha) / postureTransitionDuration_) : 0.0;
+
+    for (size_t j = 0; j < leggedInterface_->getCentroidalModelInfo().actuatedDofNum; ++j) {
+      const scalar_t delta = qTarget(j) - postureStartJointState_(j);
+      const scalar_t posDes = postureStartJointState_(j) + s * delta;
+      const scalar_t velDes = dsdt * delta;
+      setHybridJointCommand(j, posDes, velDes, postureKp_, postureKd_, 0);
+    }
+    observationPublisher_->publish(ros_msg_conversions::createObservationMsg(currentObservation_));
+    return controller_interface::return_type::OK;
+  }
+
+
   if (mpcIdle_.load()) {
     if (motionGaitRequested_.load()) {
       startMpcOptimization(time);
@@ -413,7 +511,10 @@ void LeggedController::setupMpc() {
   // 与 GaitReceiver 订阅同一话题。
   motionGaitSubscriber_ = rosNode_->create_subscription<ocs2_msgs::msg::ModeSchedule>(
       robotName + "_mpc_mode_schedule", 1,
-      [this](const ocs2_msgs::msg::ModeSchedule::ConstSharedPtr /*msg*/) { motionGaitRequested_.store(true); });
+      [this](const ocs2_msgs::msg::ModeSchedule::ConstSharedPtr /*msg*/) {
+        motionGaitRequested_.store(true);
+        motionGaitSeq_.fetch_add(1);
+      });
 }
 
 void LeggedController::setupMrt() {

@@ -1,10 +1,9 @@
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <ocs2_msgs/msg/mode_schedule.hpp>
-#include <ocs2_msgs/msg/mpc_observation.hpp>
-#include <ocs2_msgs/msg/mpc_target_trajectories.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int8.hpp>
 
 #include "legged_p1_hw/P1GaitIpc.h"
 
@@ -30,11 +29,6 @@
 #include <vector>
 
 namespace {
-
-struct PostureProfile {
-  float com_height{0.0F};
-  std::vector<float> joint_state;
-};
 
 const std::map<std::string, int>& modeNameToInt() {
   static const std::map<std::string, int> modes{
@@ -176,58 +170,6 @@ std::vector<int8_t> parseModeSequence(const std::string& gaitBlock) {
   return modes;
 }
 
-PostureProfile loadPostureProfile(const std::string& path) {
-  const auto content = readFile(path);
-  PostureProfile profile;
-  std::istringstream stream(content);
-  std::string line;
-  bool hasHeight = false;
-  while (std::getline(stream, line)) {
-    std::istringstream lineStream(line);
-    std::string key;
-    if ((lineStream >> key) && key == "comHeight" && (lineStream >> profile.com_height)) {
-      hasHeight = true;
-      break;
-    }
-  }
-  if (!hasHeight) {
-    throw std::runtime_error("missing comHeight in " + path);
-  }
-
-  const auto jointBlock = extractBracedBlock(content, "defaultJointState");
-  if (jointBlock.empty()) {
-    throw std::runtime_error("missing defaultJointState in " + path);
-  }
-
-  profile.joint_state.assign(12, 0.0F);
-  std::vector<bool> seen(12, false);
-  std::istringstream jointStream(jointBlock);
-  while (std::getline(jointStream, line)) {
-    const auto left = line.find('(');
-    const auto comma = line.find(',', left == std::string::npos ? 0 : left);
-    const auto right = line.find(')', comma == std::string::npos ? 0 : comma);
-    if (left == std::string::npos || comma == std::string::npos || right == std::string::npos) {
-      continue;
-    }
-
-    const auto index = static_cast<size_t>(std::stoul(line.substr(left + 1, comma - left - 1)));
-    if (index >= profile.joint_state.size()) {
-      throw std::runtime_error("defaultJointState index out of range in " + path);
-    }
-
-    std::istringstream valueStream(line.substr(right + 1));
-    float value = 0.0F;
-    if (valueStream >> value) {
-      profile.joint_state[index] = value;
-      seen[index] = true;
-    }
-  }
-
-  if (!std::all_of(seen.begin(), seen.end(), [](bool value) { return value; })) {
-    throw std::runtime_error("defaultJointState must contain 12 joints in " + path);
-  }
-  return profile;
-}
 
 std::map<std::string, ocs2_msgs::msg::ModeSchedule> loadGaits(const std::string& path) {
   const auto content = readFile(path);
@@ -311,9 +253,6 @@ class P1GaitDdsBridge final : public rclcpp::Node {
     const auto cmdVelTopic = declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
     const auto emergencyStopTopic = declare_parameter<std::string>("emergency_stop_topic", "/p1_emergency_stop");
     const auto robotName = declare_parameter<std::string>("robot_name", "legged_robot");
-    const auto standReferenceFile = declare_parameter<std::string>("stand_reference_file", "");
-    const auto lieDownReferenceFile = declare_parameter<std::string>("lie_down_reference_file", "");
-    postureTransitionDuration_ = declare_parameter<double>("posture_transition_duration", 2.0);
     standGaitId_ = declare_parameter<int>("stand_gait_id", 0);
     lieDownGaitId_ = declare_parameter<int>("lie_down_gait_id", 5);
     emergencyResetModeSchedule_ = declare_parameter<bool>("emergency_reset_mode_schedule", false);
@@ -321,27 +260,14 @@ class P1GaitDdsBridge final : public rclcpp::Node {
     const auto locomotionGaitIds = declare_parameter<std::string>("locomotion_gait_ids", "1");
     locomotionGaitIds_ = splitCommaSeparatedInts(locomotionGaitIds);
     auto modeScheduleTopic = declare_parameter<std::string>("mode_schedule_topic", "");
-    auto targetTopic = declare_parameter<std::string>("target_topic", "");
-    auto observationTopic = declare_parameter<std::string>("observation_topic", "");
+    auto postureCommandTopic = declare_parameter<std::string>("posture_command_topic", "");
     if (modeScheduleTopic.empty()) {
       modeScheduleTopic = "/" + robotName + "_mpc_mode_schedule";
     }
-    if (targetTopic.empty()) {
-      targetTopic = "/" + robotName + "_mpc_target";
-    }
-    if (observationTopic.empty()) {
-      observationTopic = "/" + robotName + "_mpc_observation";
+    if (postureCommandTopic.empty()) {
+      postureCommandTopic = "/" + robotName + "_posture_command";
     }
 
-    if (!standReferenceFile.empty()) {
-      standProfile_ = loadPostureProfile(standReferenceFile);
-    }
-    if (!lieDownReferenceFile.empty()) {
-      lieDownProfile_ = loadPostureProfile(lieDownReferenceFile);
-    }
-    if (mpcReferenceFile.empty()) {
-      mpcReferenceFile = lieDownReferenceFile;
-    }
     if (!mpcReferenceFile.empty()) {
       defaultModeSequenceTemplate_ = loadDefaultModeSequenceTemplate(mpcReferenceFile);
       hasDefaultModeSequenceTemplate_ = true;
@@ -356,18 +282,17 @@ class P1GaitDdsBridge final : public rclcpp::Node {
 
     cmdVelPublisher_ = create_publisher<geometry_msgs::msg::Twist>(cmdVelTopic, 10);
     emergencyStopPublisher_ = create_publisher<std_msgs::msg::Bool>(emergencyStopTopic, rclcpp::QoS(1).reliable().transient_local());
-    targetPublisher_ = create_publisher<ocs2_msgs::msg::MpcTargetTrajectories>(targetTopic, 1);
-    observationSubscriber_ = create_subscription<ocs2_msgs::msg::MpcObservation>(
-        observationTopic, 1, [this](const ocs2_msgs::msg::MpcObservation::SharedPtr msg) { observationCallback(*msg); });
     auto modeQos = rclcpp::QoS(1).reliable().transient_local();
     modeSchedulePublisher_ = create_publisher<ocs2_msgs::msg::ModeSchedule>(modeScheduleTopic, modeQos);
+    // 固定姿态命令(Int8: 1=STAND, 2=LIE_DOWN, 0=解除)。stance/lie_down 不再发 mode_schedule/target，改发此话题给控制器。
+    postureCommandPublisher_ = create_publisher<std_msgs::msg::Int8>(postureCommandTopic, modeQos);
 
     startDdsWorker(domain, gaitTopic);
     RCLCPP_INFO(get_logger(),
-                "P1 gait DDS bridge ready: dds=%s domain=%u cmd_vel=%s emergency_stop=%s mode_schedule=%s target=%s "
-                "observation=%s gait_id_mapping=%s emergency_reset_mode_schedule=%s mpc_reference=%s",
+                "P1 gait DDS bridge ready: dds=%s domain=%u cmd_vel=%s emergency_stop=%s mode_schedule=%s posture_command=%s "
+                "gait_id_mapping=%s emergency_reset_mode_schedule=%s mpc_reference=%s",
                 gaitTopic.c_str(), domain, cmdVelTopic.c_str(), emergencyStopTopic.c_str(), modeScheduleTopic.c_str(),
-                targetTopic.c_str(), observationTopic.c_str(), gaitIdMapping.c_str(),
+                postureCommandTopic.c_str(), gaitIdMapping.c_str(),
                 emergencyResetModeSchedule_ ? "true" : "false", mpcReferenceFile_.c_str());
   }
 
@@ -435,56 +360,12 @@ class P1GaitDdsBridge final : public rclcpp::Node {
     }
   }
 
-  void observationCallback(const ocs2_msgs::msg::MpcObservation& observation) {
-    std::lock_guard<std::mutex> lock(observationMutex_);
-    latestObservation_ = observation;
-    hasObservation_ = true;
-  }
-
-  void publishPostureTarget(const PostureProfile& profile, const char* name) {
-    ocs2_msgs::msg::MpcObservation observation;
-    {
-      std::lock_guard<std::mutex> lock(observationMutex_);
-      if (!hasObservation_) {
-        RCLCPP_WARN(get_logger(), "Skip %s posture target: no MPC observation received yet", name);
-        return;
-      }
-      observation = latestObservation_;
-    }
-
-    if (observation.state.value.size() < 24 || profile.joint_state.size() != 12) {
-      RCLCPP_WARN(get_logger(), "Skip %s posture target: unexpected state/profile size", name);
-      return;
-    }
-
-    ocs2_msgs::msg::MpcTargetTrajectories target;
-    target.time_trajectory = {observation.time, observation.time + postureTransitionDuration_};
-
-    ocs2_msgs::msg::MpcState startState;
-    startState.value = observation.state.value;
-    for (size_t i = 0; i < std::min<size_t>(6, startState.value.size()); ++i) {
-      startState.value[i] = 0.0F;
-    }
-
-    ocs2_msgs::msg::MpcState endState;
-    endState.value.assign(observation.state.value.size(), 0.0F);
-    endState.value[6] = observation.state.value[6];
-    endState.value[7] = observation.state.value[7];
-    endState.value[8] = profile.com_height;
-    endState.value[9] = observation.state.value[9];
-    endState.value[10] = 0.0F;
-    endState.value[11] = 0.0F;
-    for (size_t i = 0; i < profile.joint_state.size(); ++i) {
-      endState.value[12 + i] = profile.joint_state[i];
-    }
-
-    ocs2_msgs::msg::MpcInput zeroInput;
-    zeroInput.value.assign(observation.input.value.size(), 0.0F);
-    target.state_trajectory = {startState, endState};
-    target.input_trajectory = {zeroInput, zeroInput};
-    targetPublisher_->publish(target);
-    RCLCPP_INFO(get_logger(), "Published %s posture target: height=%.3f duration=%.2f", name, profile.com_height,
-                postureTransitionDuration_);
+  // 发布固定姿态命令(1=STAND, 2=LIE_DOWN, 0=解除)。控制器收到后绕过 MPC，直接把关节拉向 reference.info 里的固定角。
+  void publishPostureCommand(int8_t posture, const char* name) {
+    std_msgs::msg::Int8 msg;
+    msg.data = posture;
+    postureCommandPublisher_->publish(msg);
+    RCLCPP_INFO(get_logger(), "Published posture command: %s (%d)", name, static_cast<int>(posture));
   }
 
   void handleCommand(const legged_p1_hw::P1GaitCommandPacket& command) {
@@ -533,12 +414,17 @@ class P1GaitDdsBridge final : public rclcpp::Node {
         RCLCPP_WARN(get_logger(), "Ignore gait_id=%u, valid range is [0, %zu)", command.gait_id, gaits_.size());
       } else {
         activeGaitId_ = static_cast<int>(command.gait_id);
-        modeSchedulePublisher_->publish(gaits_[command.gait_id]);
-        RCLCPP_INFO(get_logger(), "Published gait_id=%u", command.gait_id);
-        if (activeGaitId_ == standGaitId_ && !standProfile_.joint_state.empty()) {
-          publishPostureTarget(standProfile_, "stand");
-        } else if (activeGaitId_ == lieDownGaitId_ && !lieDownProfile_.joint_state.empty()) {
-          publishPostureTarget(lieDownProfile_, "lie_down");
+        if (activeGaitId_ == standGaitId_) {
+          // 固定姿态(站立)：绕过 MPC，只发姿态命令，不发 mode_schedule。
+          publishPostureCommand(1, "stand");
+        } else if (activeGaitId_ == lieDownGaitId_) {
+          // 固定姿态(趴下)：绕过 MPC，只发姿态命令，不发 mode_schedule。
+          publishPostureCommand(2, "lie_down");
+        } else {
+          // 运动步态：解除固定姿态(发 0)并发布 mode_schedule 启动 MPC。
+          publishPostureCommand(0, "none");
+          modeSchedulePublisher_->publish(gaits_[command.gait_id]);
+          RCLCPP_INFO(get_logger(), "Published gait_id=%u", command.gait_id);
         }
       }
     }
@@ -569,9 +455,6 @@ class P1GaitDdsBridge final : public rclcpp::Node {
   bool hasDefaultModeSequenceTemplate_{false};
   bool emergencyResetModeSchedule_{false};
   bool emergencyStopActive_{false};
-  PostureProfile standProfile_;
-  PostureProfile lieDownProfile_;
-  double postureTransitionDuration_{2.0};
   int standGaitId_{0};
   int lieDownGaitId_{5};
   int activeGaitId_{-1};
@@ -582,14 +465,10 @@ class P1GaitDdsBridge final : public rclcpp::Node {
   int workerReadFd_{-1};
   pid_t workerPid_{-1};
   std::thread workerThread_;
-  std::mutex observationMutex_;
-  ocs2_msgs::msg::MpcObservation latestObservation_;
-  bool hasObservation_{false};
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmdVelPublisher_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr emergencyStopPublisher_;
   rclcpp::Publisher<ocs2_msgs::msg::ModeSchedule>::SharedPtr modeSchedulePublisher_;
-  rclcpp::Publisher<ocs2_msgs::msg::MpcTargetTrajectories>::SharedPtr targetPublisher_;
-  rclcpp::Subscription<ocs2_msgs::msg::MpcObservation>::SharedPtr observationSubscriber_;
+  rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr postureCommandPublisher_;
 };
 
 int main(int argc, char** argv) {

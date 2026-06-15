@@ -168,7 +168,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("robot_type", default_value="p1"),
             DeclareLaunchArgument("task_file", default_value=os.path.join(controllers_share, "config", "p1", "task.info")),
-            DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference_lie_down.info")),
+            DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference.info")),
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("emergency_stop_topic", default_value="/p1_emergency_stop"),
             DeclareLaunchArgument("legged_controller_type", default_value="legged/LeggedController"),

@@ -16,6 +16,7 @@
 #include <ocs2_msgs/msg/mpc_observation.hpp>
 #include <rclcpp/time.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int8.hpp>
 
 #include <legged_estimation/StateEstimateBase.h>
 #include <legged_interface/LeggedInterface.h>
@@ -76,6 +77,7 @@ class LeggedController : public controller_interface::ControllerInterface {
   rclcpp::Publisher<ocs2_msgs::msg::MpcObservation>::SharedPtr observationPublisher_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr emergencyStopSubscriber_;
   rclcpp::Subscription<ocs2_msgs::msg::ModeSchedule>::SharedPtr motionGaitSubscriber_;
+  rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr postureCommandSubscriber_;
   rclcpp::Node::SharedPtr rosNode_;
   rclcpp::executors::SingleThreadedExecutor rosExecutor_;
   std::thread rosSpinThread_;
@@ -92,6 +94,22 @@ class LeggedController : public controller_interface::ControllerInterface {
   std::atomic_bool mpcAdvancePaused_{false};
   std::atomic_bool mpcIdle_{true};           // true = 空闲，等待运动步态命令
   std::atomic_bool motionGaitRequested_{false};
+  std::atomic_int motionGaitSeq_{0};         // 运动步态命令计数：每收到一次 mode_schedule +1，用于边沿检测(退出固定姿态)
+  int lastHandledMotionSeq_{0};              // update() 已处理到的运动步态序号
+
+  // 固定姿态（绕过 MPC 的直接位控）：stance / lie_down 不跑 MPC，直接把关节拉向固定角。
+  // postureRequest_: 0 = 无/运动步态, 1 = STAND(站立), 2 = LIE_DOWN(趴下)。回调写入，update() 读取。
+  enum class PostureCommand : int8_t { NONE = 0, STAND = 1, LIE_DOWN = 2 };
+  std::atomic_int postureRequest_{static_cast<int>(PostureCommand::NONE)};
+  bool postureActive_{false};                // update() 内部状态：当前是否处于固定姿态
+  int activePosture_{static_cast<int>(PostureCommand::NONE)};
+  vector_t standJointState_;                 // 站立固定关节角(= reference.info defaultJointState)
+  vector_t lieDownJointState_;               // 趴下固定关节角(= reference.info lieDownJointState)
+  vector_t postureStartJointState_;          // 进入姿态瞬间的实测关节角，作为插值起点
+  scalar_t postureElapsed_{0.0};             // 当前姿态过渡已用时间[s]
+  scalar_t postureTransitionDuration_{1.5};  // 姿态过渡时长[s]，从实测角平滑插值到目标角，避免硬跳变弹飞
+  scalar_t postureKp_{270.0};
+  scalar_t postureKd_{17.0};
   benchmark::RepeatedTimer mpcTimer_;
   benchmark::RepeatedTimer wbcTimer_;
   std::atomic_bool emergencyStopActive_{false};

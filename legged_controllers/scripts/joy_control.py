@@ -13,13 +13,13 @@ import yaml
 
 import rclpy
 from geometry_msgs.msg import Twist
-from ocs2_msgs.msg import ModeSchedule, MpcInput, MpcObservation, MpcState, MpcTargetTrajectories
+from ocs2_msgs.msg import ModeSchedule
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Joy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Int8
 
 # ocs2_legged_robot MotionPhaseDefinition.h
 MODE_NAME_TO_INT = {
@@ -134,35 +134,6 @@ def parse_gait_info(path: str) -> Dict[str, Tuple[List[float], List[int]]]:
 
 
 
-def load_posture_profile(path: str) -> Tuple[float, List[float]]:
-    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
-
-    height_match = re.search(r"comHeight\s+([\d.+-eE]+)", content)
-    if not height_match:
-        raise ValueError(f"missing comHeight in {path}")
-    height = float(height_match.group(1))
-
-    block = _extract_braced_block(content, "defaultJointState")
-    if block is None:
-        raise ValueError(f"missing defaultJointState in {path}")
-
-    joints = [0.0] * 12
-    seen = [False] * 12
-    for line in block.splitlines():
-        m = re.search(r"\((\d+),0\)\s*([\d.+-eE]+)", line)
-        if not m:
-            continue
-        idx = int(m.group(1))
-        if idx < 0 or idx >= len(joints):
-            raise ValueError(f"defaultJointState index out of range in {path}: {idx}")
-        joints[idx] = float(m.group(2))
-        seen[idx] = True
-
-    if not all(seen):
-        raise ValueError(f"defaultJointState must contain 12 joints in {path}")
-    return height, joints
-
 def combo_active(msg: Joy, required: List[int], thresh: float) -> bool:
     if not required:
         return False
@@ -199,26 +170,16 @@ class JoyControl(Node):
         teleop_path = self.declare_parameter("teleop_config_file", "").value
         mappings_path = self.declare_parameter("gait_mappings_file", "").value
         gait_file = self.declare_parameter("gait_command_file", "").value
-        stand_reference_file = str(self.declare_parameter("stand_reference_file", "").value)
-        lie_down_reference_file = str(self.declare_parameter("lie_down_reference_file", "").value)
         self._stand_gait_name = str(self.declare_parameter("stand_gait_name", "stance").value)
         self._lie_down_gait_name = str(self.declare_parameter("lie_down_gait_name", "lie_down").value)
         locomotion_gaits = str(self.declare_parameter("locomotion_gaits", "trot").value)
         self._locomotion_gaits = {g.strip().lower() for g in locomotion_gaits.split(",") if g.strip()}
-        self._posture_transition_duration = float(self.declare_parameter("posture_transition_duration", 2.0).value)
         emergency_stop_topic = str(self.declare_parameter("emergency_stop_topic", "/emergency_stop").value)
         if not emergency_stop_topic.startswith("/"):
             emergency_stop_topic = "/" + emergency_stop_topic
         self._emergency_stop_buttons = [
             int(x) for x in self.declare_parameter("emergency_stop_buttons", [8, 9]).value
         ]
-
-        self._stand_profile: Optional[Tuple[float, List[float]]] = None
-        self._lie_down_profile: Optional[Tuple[float, List[float]]] = None
-        if stand_reference_file:
-            self._stand_profile = load_posture_profile(stand_reference_file)
-        if lie_down_reference_file:
-            self._lie_down_profile = load_posture_profile(lie_down_reference_file)
 
         self._teleop = self._load_teleop(str(teleop_path))
         cmd_topic: str = self.declare_parameter("cmd_vel_topic", "").value
@@ -275,15 +236,13 @@ class JoyControl(Node):
         )
         self._mode_pub = self.create_publisher(ModeSchedule, mode_topic, mode_qos)
 
-        target_topic = str(self.declare_parameter("target_topic", f"/{robot_name}_mpc_target").value)
-        if not target_topic.startswith("/"):
-            target_topic = "/" + target_topic
-        observation_topic = str(self.declare_parameter("observation_topic", f"/{robot_name}_mpc_observation").value)
-        if not observation_topic.startswith("/"):
-            observation_topic = "/" + observation_topic
-        self._target_pub = self.create_publisher(MpcTargetTrajectories, target_topic, 1)
-        self._latest_observation: Optional[MpcObservation] = None
-        self.create_subscription(MpcObservation, observation_topic, self._observation_cb, 1)
+        posture_command_topic = str(
+            self.declare_parameter("posture_command_topic", f"/{robot_name}_posture_command").value
+        )
+        if not posture_command_topic.startswith("/"):
+            posture_command_topic = "/" + posture_command_topic
+        # 固定姿态命令(Int8: 1=STAND, 2=LIE_DOWN, 0=解除)。stance/lie_down 改发此话题，不再发 mode_schedule/target。
+        self._posture_pub = self.create_publisher(Int8, posture_command_topic, mode_qos)
 
         self.create_subscription(Joy, joy_topic, self._joy_cb, 1)
         self.create_timer(0.5, self._on_timer)
@@ -388,6 +347,20 @@ class JoyControl(Node):
 
     def _publish_gait(self, name: str) -> None:
         self._last_gait_name = name
+
+        if name == self._stand_gait_name:
+            # 固定姿态(站立)：绕过 MPC，只发姿态命令，不发 mode_schedule。
+            self._publish_posture_command(1, "stand")
+            self.get_logger().info(f"已发布步态 '{name}' (固定姿态-站立)")
+            return
+        if name == self._lie_down_gait_name:
+            # 固定姿态(趴下)：绕过 MPC，只发姿态命令，不发 mode_schedule。
+            self._publish_posture_command(2, "lie_down")
+            self.get_logger().info(f"已发布步态 '{name}' (固定姿态-趴下)")
+            return
+
+        # 运动步态：解除固定姿态(发 0)并发布 mode_schedule 启动 MPC。
+        self._publish_posture_command(0, "none")
         event_times, mode_sequence = self._gaits[name]
         msg = ModeSchedule()
         msg.event_times = event_times
@@ -396,54 +369,22 @@ class JoyControl(Node):
             self._mode_pub.publish(msg)
             time.sleep(self._publish_repeat_dt)
 
-        if name == self._stand_gait_name and self._stand_profile is not None:
-            self._publish_posture_target(self._stand_profile, "stand")
-        elif name == self._lie_down_gait_name and self._lie_down_profile is not None:
-            self._publish_posture_target(self._lie_down_profile, "lie_down")
-
         self.get_logger().info(f"已发布步态 '{name}'")
 
-    def _observation_cb(self, msg: MpcObservation) -> None:
-        self._latest_observation = msg
-
-    def _publish_posture_target(self, profile: Tuple[float, List[float]], name: str) -> None:
-        if self._latest_observation is None:
-            self.get_logger().warn(f"跳过 {name} 姿态目标：还没有收到 MPC observation")
-            return
-
-        height, joints = profile
-        obs = self._latest_observation
-        if len(obs.state.value) < 24 or len(joints) != 12:
-            self.get_logger().warn(f"跳过 {name} 姿态目标：state/profile 维度不正确")
-            return
-
-        target = MpcTargetTrajectories()
-        target.time_trajectory = [float(obs.time), float(obs.time + self._posture_transition_duration)]
-
-        start_state = MpcState()
-        start_state.value = list(obs.state.value)
-        for i in range(min(6, len(start_state.value))):
-            start_state.value[i] = 0.0
-
-        end_state = MpcState()
-        end_state.value = [0.0] * len(obs.state.value)
-        end_state.value[6] = obs.state.value[6]
-        end_state.value[7] = obs.state.value[7]
-        end_state.value[8] = float(height)
-        end_state.value[9] = obs.state.value[9]
-        end_state.value[10] = 0.0
-        end_state.value[11] = 0.0
-        for i, q in enumerate(joints):
-            end_state.value[12 + i] = float(q)
-
-        zero_input = MpcInput()
-        zero_input.value = [0.0] * len(obs.input.value)
-        target.state_trajectory = [start_state, end_state]
-        target.input_trajectory = [zero_input, zero_input]
-        self._target_pub.publish(target)
-        self.get_logger().info(f"已发布 {name} 姿态目标 height={height:.3f}")
+    def _publish_posture_command(self, posture: int, name: str) -> None:
+        msg = Int8()
+        msg.data = int(posture)
+        self._posture_pub.publish(msg)
+        self.get_logger().info(f"已发布姿态命令 {name} ({posture})")
 
     def _republish_gait_light(self, name: str) -> None:
+        # 固定姿态(stance/lie_down)补发姿态命令；运动步态补发 mode_schedule。
+        if name == self._stand_gait_name:
+            self._publish_posture_command(1, "stand")
+            return
+        if name == self._lie_down_gait_name:
+            self._publish_posture_command(2, "lie_down")
+            return
         event_times, mode_sequence = self._gaits[name]
         msg = ModeSchedule()
         msg.event_times = event_times

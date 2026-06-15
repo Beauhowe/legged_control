@@ -38,11 +38,7 @@ def launch_setup(context, *args, **kwargs):
     gait_id_mapping = LaunchConfiguration("gait_id_mapping").perform(context)
     cmd_vel_topic = LaunchConfiguration("cmd_vel_topic").perform(context)
     mode_schedule_topic = LaunchConfiguration("mode_schedule_topic").perform(context)
-    target_topic = LaunchConfiguration("target_topic").perform(context)
-    observation_topic = LaunchConfiguration("observation_topic").perform(context)
-    stand_reference_file = LaunchConfiguration("stand_reference_file").perform(context)
-    lie_down_reference_file = LaunchConfiguration("lie_down_reference_file").perform(context)
-    posture_transition_duration = LaunchConfiguration("posture_transition_duration").perform(context)
+    posture_command_topic = LaunchConfiguration("posture_command_topic").perform(context)
     stand_gait_id = LaunchConfiguration("stand_gait_id").perform(context)
     lie_down_gait_id = LaunchConfiguration("lie_down_gait_id").perform(context)
 
@@ -55,10 +51,6 @@ def launch_setup(context, *args, **kwargs):
     task_file = resolve_task_file(task_file, robot_type)
     if not gait_file:
         gait_file = os.path.join(controllers_share, "config", robot_type, "gait.info")
-    if not stand_reference_file:
-        stand_reference_file = os.path.join(controllers_share, "config", robot_type, "reference.info")
-    if not lie_down_reference_file:
-        lie_down_reference_file = os.path.join(controllers_share, "config", robot_type, "reference_lie_down.info")
 
     description_share = get_package_share_directory("legged_description")
     controllers_yaml = os.path.join(controllers_share, "config", "controllers.yaml")
@@ -153,7 +145,7 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
         condition=IfCondition(start_target_publisher),
         parameters=[
-            {"referenceFile": stand_reference_file},
+            {"referenceFile": reference_file},
             {"taskFile": task_file},
         ],
     )
@@ -172,11 +164,7 @@ def launch_setup(context, *args, **kwargs):
             {"cmd_vel_topic": cmd_vel_topic},
             {"emergency_stop_topic": emergency_stop_topic},
             {"mode_schedule_topic": mode_schedule_topic},
-            {"target_topic": target_topic},
-            {"observation_topic": observation_topic},
-            {"stand_reference_file": stand_reference_file},
-            {"lie_down_reference_file": lie_down_reference_file},
-            {"posture_transition_duration": float(posture_transition_duration)},
+            {"posture_command_topic": posture_command_topic},
             {"stand_gait_id": int(stand_gait_id)},
             {"lie_down_gait_id": int(lie_down_gait_id)},
             {"mpc_reference_file": reference_file},
@@ -202,7 +190,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("robot_type", default_value="p1"),
             DeclareLaunchArgument("task_file", default_value=os.path.join(controllers_share, "config", "p1", "task.info")),
-            DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference_lie_down.info")),
+            DeclareLaunchArgument("reference_file", default_value=os.path.join(controllers_share, "config", "p1", "reference.info")),
             DeclareLaunchArgument("hardware_plugin", default_value="legged_p1_hw/P1HW"),
             DeclareLaunchArgument("contact_threshold", default_value="40"),
             DeclareLaunchArgument("command_mode", default_value="10"),
@@ -229,11 +217,7 @@ def generate_launch_description():
             DeclareLaunchArgument("gait_id_mapping", default_value="stance,trot,standing_trot,pace,static_walk,lie_down"),
             DeclareLaunchArgument("cmd_vel_topic", default_value="/cmd_vel"),
             DeclareLaunchArgument("mode_schedule_topic", default_value="/legged_robot_mpc_mode_schedule"),
-            DeclareLaunchArgument("target_topic", default_value="/legged_robot_mpc_target"),
-            DeclareLaunchArgument("observation_topic", default_value="/legged_robot_mpc_observation"),
-            DeclareLaunchArgument("stand_reference_file", default_value=""),
-            DeclareLaunchArgument("lie_down_reference_file", default_value=""),
-            DeclareLaunchArgument("posture_transition_duration", default_value="2.0"),
+            DeclareLaunchArgument("posture_command_topic", default_value="/legged_robot_posture_command"),
             DeclareLaunchArgument("stand_gait_id", default_value="0"),
             DeclareLaunchArgument("lie_down_gait_id", default_value="5"),
             DeclareLaunchArgument(

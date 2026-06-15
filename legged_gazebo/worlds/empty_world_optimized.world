@@ -1,0 +1,139 @@
+<?xml version="1.0" ?>
+
+<sdf version="1.5">
+    <world name="default">
+        <!-- 优化的物理引擎配置 - 降低更新率和迭代次数以减少内存和CPU使用 -->
+        <physics type="ode">
+            <type>world</type>
+            <!-- 降低更新率从 500 到 1000Hz (0.001s step) -->
+            <max_step_size>0.002</max_step_size>
+            <!-- 降低实时更新率从 500 到 1000 -->
+            <real_time_update_rate>500</real_time_update_rate>
+            <!-- 降低求解器迭代次数从 500 到 50 -->
+            <iters>50</iters>
+            <!-- 设置最大接触点数量，防止无限累积 -->
+            <max_contacts>20</max_contacts>
+        </physics>
+
+        <!-- A global light source -->
+        <include>
+            <uri>model://sun</uri>
+        </include>
+
+        <!-- A ground plane -->
+        <include>
+            <uri>model://ground_plane</uri>
+        </include>
+
+        <!-- 简化版楼梯 - 只保留一组用于测试 -->
+        <model name="stairs">
+            <static>true</static>
+            <pose>1.40 0 0 0 0 0</pose>
+            <link name="step_1">
+                <pose>0.00 0 0.075 0 0 0</pose>
+                <collision name="collision">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.15</size>
+                        </box>
+                    </geometry>
+                </collision>
+                <visual name="visual">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.15</size>
+                        </box>
+                    </geometry>
+                    <material>
+                        <ambient>0.45 0.45 0.45 1</ambient>
+                        <diffuse>0.55 0.55 0.55 1</diffuse>
+                    </material>
+                </visual>
+            </link>
+            <link name="step_2">
+                <pose>0.30 0 0.150 0 0 0</pose>
+                <collision name="collision">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.30</size>
+                        </box>
+                    </geometry>
+                </collision>
+                <visual name="visual">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.30</size>
+                        </box>
+                    </geometry>
+                    <material>
+                        <ambient>0.45 0.45 0.45 1</ambient>
+                        <diffuse>0.55 0.55 0.55 1</diffuse>
+                    </material>
+                </visual>
+            </link>
+            <link name="step_3">
+                <pose>0.60 0 0.225 0 0 0</pose>
+                <collision name="collision">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.45</size>
+                        </box>
+                    </geometry>
+                </collision>
+                <visual name="visual">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.45</size>
+                        </box>
+                    </geometry>
+                    <material>
+                        <ambient>0.45 0.45 0.45 1</ambient>
+                        <diffuse>0.55 0.55 0.55 1</diffuse>
+                    </material>
+                </visual>
+            </link>
+            <link name="step_4">
+                <pose>0.90 0 0.300 0 0 0</pose>
+                <collision name="collision">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.60</size>
+                        </box>
+                    </geometry>
+                </collision>
+                <visual name="visual">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.60</size>
+                        </box>
+                    </geometry>
+                    <material>
+                        <ambient>0.45 0.45 0.45 1</ambient>
+                        <diffuse>0.55 0.55 0.55 1</diffuse>
+                    </material>
+                </visual>
+            </link>
+            <link name="step_5">
+                <pose>1.20 0 0.375 0 0 0</pose>
+                <collision name="collision">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.75</size>
+                        </box>
+                    </geometry>
+                </collision>
+                <visual name="visual">
+                    <geometry>
+                        <box>
+                            <size>0.30 1.20 0.75</size>
+                        </box>
+                    </geometry>
+                    <material>
+                        <ambient>0.45 0.45 0.45 1</ambient>
+                        <diffuse>0.55 0.55 0.55 1</diffuse>
+                    </material>
+                </visual>
+            </link>
+        </model>
+    </world>
+</sdf>

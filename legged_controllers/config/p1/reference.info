@@ -4,6 +4,15 @@ targetRotationVelocity              1.57;
 comHeight                           0.58
 locomotionComHeight                 0.58
 
+; ===== 固定姿态（绕过 MPC，控制器直接位控）相关参数 =====
+; 进入 stance / lie_down 时，控制器不跑 MPC，直接把关节拉向下面的固定角。
+; stance 使用 defaultJointState（站立姿态），lie_down 使用 lieDownJointState（趴下姿态）。
+; postureKp / postureKd 为固定姿态下的关节位控增益（可在此调软避免动作过猛）。
+; postureTransitionDuration 为进入/切换固定姿态时，从当前实测角平滑插值到目标角的时长[s]，避免硬跳变弹飞。
+postureKp                           270.0
+postureKd                           4.0
+postureTransitionDuration           1.5
+
 defaultJointState
 {
    (0,0)  -0.035   ; LF_HAA
@@ -18,6 +27,23 @@ defaultJointState
    (9,0)   0.035   ; RH_HAA
    (10,0)  0.635   ; RH_HFE
    (11,0) -1.188   ; RH_KFE
+}
+
+; 趴下姿态固定关节角（原 reference_lie_down.info 的 defaultJointState）
+lieDownJointState
+{
+   (0,0)   0.0    ; LF_HAA
+   (1,0)   1.35   ; LF_HFE
+   (2,0)  -2.55   ; LF_KFE
+   (3,0)   0.0    ; LH_HAA
+   (4,0)   1.35   ; LH_HFE
+   (5,0)  -2.55   ; LH_KFE
+   (6,0)   0.0    ; RF_HAA
+   (7,0)   1.35   ; RF_HFE
+   (8,0)  -2.55   ; RF_KFE
+   (9,0)   0.0    ; RH_HAA
+   (10,0)  1.35   ; RH_HFE
+   (11,0) -2.55   ; RH_KFE
 }
 
 initialModeSchedule
