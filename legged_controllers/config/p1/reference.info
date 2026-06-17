@@ -11,7 +11,7 @@ locomotionComHeight                 0.58
 ; postureTransitionDuration 为进入/切换固定姿态时，从当前实测角平滑插值到目标角的时长[s]，避免硬跳变弹飞。
 postureKp                           300.0
 postureKd                           4.0
-postureTransitionDuration           2
+postureTransitionDuration           5
 
 defaultJointState
 {

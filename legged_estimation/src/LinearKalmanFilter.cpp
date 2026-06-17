@@ -46,7 +46,7 @@ KalmanFilterEstimate::KalmanFilterEstimate(rclcpp::Node::SharedPtr node, Pinocch
   eeKinematics_->setPinocchioInterface(pinocchioInterface_);
 
   world2odom_.setRotation(tf2::Quaternion::getIdentity());
-  sub_ = node_->create_subscription<nav_msgs::msg::Odometry>("/tracking_camera/odom/sample", 10,
+  sub_ = node_->create_subscription<nav_msgs::msg::Odometry>("/Odometry", 10,
                                                              std::bind(&KalmanFilterEstimate::callback, this, std::placeholders::_1));
 }
 

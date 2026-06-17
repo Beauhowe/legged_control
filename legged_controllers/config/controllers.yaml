@@ -2,7 +2,7 @@ controller_manager:
   ros__parameters:
     # Must match mpc.mrtDesiredFrequency in task.info (default 1000 Hz).
     # Lower rates break in-place trot (lateral drift) unless task.info is updated too.
-    update_rate: 500
+    update_rate: 1000
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster

@@ -58,6 +58,9 @@ legged_control/go1/
 legged_control/aliengo/
 legged_control/a1/
 legged_control/p1/
+legged_control/p1_perceptive/
 
 
 .vscode/
+
+# CppAD generated files
