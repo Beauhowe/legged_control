@@ -16,6 +16,7 @@
     <depend>legged_interface</depend>
     <depend>legged_estimation</depend>
     <depend>legged_wbc</depend>
+    <depend>logger</depend>
 
     <depend>controller_interface</depend>
     <depend>hardware_interface</depend>

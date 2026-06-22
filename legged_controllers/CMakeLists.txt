@@ -25,6 +25,7 @@ find_package(legged_interface REQUIRED)
 find_package(legged_wbc REQUIRED)
 find_package(legged_estimation REQUIRED)
 find_package(pinocchio REQUIRED)
+find_package(logger REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem system log log_setup)
 
 add_library(${PROJECT_NAME} SHARED
@@ -55,6 +56,7 @@ ament_target_dependencies(${PROJECT_NAME}
         legged_wbc
         legged_estimation
         pinocchio
+        logger
         )
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${OCS2_CXX_FLAGS})

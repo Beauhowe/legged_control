@@ -6,7 +6,9 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <tf2_ros/transform_broadcaster.hpp>
 
 #include <legged_common/hardware_interface/ContactSensorInterface.h>
 #include <legged_common/hardware_interface/HybridJointInterface.h>
@@ -54,6 +56,7 @@ class StateEstimateBase {
 
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odomPub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr posePub_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster_;
   rclcpp::Time lastPub_;
 };
 

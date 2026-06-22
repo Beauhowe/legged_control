@@ -22,9 +22,12 @@
 #include <legged_estimation/LinearKalmanFilter.h>
 #include <legged_wbc/HierarchicalWbc.h>
 #include <legged_wbc/WeightedWbc.h>
+#include <logger/Logger.h>
 #include <pluginlib/class_list_macros.hpp>
 
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 
 namespace legged {
@@ -454,6 +457,22 @@ void LeggedController::updateStateEstimation(const rclcpp::Time& time, const rcl
   } else {
     currentObservation_.time += period.seconds();
   }
+  const auto& info = leggedInterface_->getCentroidalModelInfo();
+  const auto basePosition = measuredRbdState_.segment<3>(3);
+  const auto baseVelocity = measuredRbdState_.segment<3>(info.generalizedCoordinatesNum + 3);
+
+  static logger::Logger ekfBaseLogger("controller_ekf_base_state");
+  std::ostringstream logStream;
+  logStream << std::setprecision(17)
+            << "controller_time=" << currentObservation_.time
+            << " base_x=" << basePosition.x()
+            << " base_y=" << basePosition.y()
+            << " base_z=" << basePosition.z()
+            << " base_vx=" << baseVelocity.x()
+            << " base_vy=" << baseVelocity.y()
+            << " base_vz=" << baseVelocity.z();
+  ekfBaseLogger.info(logStream.str());
+
   scalar_t yawLast = currentObservation_.state(9);
   currentObservation_.state = rbdConversions_->computeCentroidalStateFromRbdModel(measuredRbdState_);
   currentObservation_.state(9) = yawLast + angles::shortest_angular_distance(yawLast, currentObservation_.state(9));

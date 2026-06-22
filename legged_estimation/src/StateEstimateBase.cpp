@@ -21,6 +21,7 @@ StateEstimateBase::StateEstimateBase(rclcpp::Node::SharedPtr node, PinocchioInte
       lastPub_(0, 0, node_->get_clock()->get_clock_type()) {
   odomPub_ = node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
   posePub_ = node_->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("pose", 10);
+  tfBroadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(node_);
 }
 
 void StateEstimateBase::updateJointStates(const vector_t& jointPos, const vector_t& jointVel) {
@@ -65,6 +66,17 @@ void StateEstimateBase::publishMsgs(const nav_msgs::msg::Odometry& odom) {
     pose.header = odom.header;
     pose.pose = odom.pose;
     posePub_->publish(pose);
+
+    if (!odom.header.frame_id.empty() && !odom.child_frame_id.empty()) {
+      geometry_msgs::msg::TransformStamped transform;
+      transform.header = odom.header;
+      transform.child_frame_id = odom.child_frame_id;
+      transform.transform.translation.x = odom.pose.pose.position.x;
+      transform.transform.translation.y = odom.pose.pose.position.y;
+      transform.transform.translation.z = odom.pose.pose.position.z;
+      transform.transform.rotation = odom.pose.pose.orientation;
+      tfBroadcaster_->sendTransform(transform);
+    }
   }
 }
 
